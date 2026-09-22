@@ -85,24 +85,34 @@ function getStartDateForPeriod(period) {
     const now = new Date();
     if (period === "1mo") {
         now.setMonth(now.getMonth() - 1);
+        return now.toISOString().split("T")[0];
     } else if (period === "6mo") {
         now.setMonth(now.getMonth() - 6);
+        return now.toISOString().split("T")[0];
     } else if (period === "1y") {
         now.setFullYear(now.getFullYear() - 1);
+        return now.toISOString().split("T")[0];
     } else if (period === "3y") {
         now.setFullYear(now.getFullYear() - 3);
-    } else {
-        return "2019-01-01";
+        return now.toISOString().split("T")[0];
     }
-    return now.toISOString().split("T")[0];
+    // "max" returns null to fetch the entire history from the very first day of trading!
+    return null;
 }
 
 async function loadStockData(ticker) {
     showLoading();
     const startDate = getStartDateForPeriod(currentPeriod);
+    const params = new URLSearchParams({
+        ticker: ticker,
+        period: currentPeriod,
+    });
+    if (startDate) {
+        params.append("start", startDate);
+    }
 
     try {
-        const res = await fetch(`/api/data?ticker=${encodeURIComponent(ticker)}&start=${startDate}`);
+        const res = await fetch(`/api/data?${params.toString()}`);
         if (!res.ok) {
             throw new Error(`Server returned status ${res.status}`);
         }
@@ -133,7 +143,7 @@ function showLoading() {
         <tr>
             <td colspan="10" class="loading-state">
                 <div class="spinner"></div>
-                <div>Fetching market observations for ${currentTicker}...</div>
+                <div>Fetching all historical observations for ${currentTicker}...</div>
             </td>
         </tr>
     `;
@@ -146,7 +156,7 @@ function updateSummary(data) {
     sectorBadgeEl.textContent = data.sector;
 
     latestPriceEl.textContent = `₹${formatNumber(s.latest_close)}`;
-    latestDateEl.textContent = s.latest_date;
+    latestDateEl.textContent = `${s.latest_date} (First Traded: ${s.first_trading_date || '--'})`;
 
     const isPositive = s.change >= 0;
     const sign = isPositive ? "+" : "";
@@ -157,6 +167,7 @@ function updateSummary(data) {
     dayHighEl.textContent = `₹${formatNumber(s.day_high)}`;
     dayOpenEl.textContent = `₹${formatNumber(s.day_open)}`;
 
+    // Day range percentage progress
     const dayRangeSpan = s.day_high - s.day_low;
     const dayProgress = dayRangeSpan > 0 ? ((s.latest_close - s.day_low) / dayRangeSpan) * 100 : 50;
     dayRangeProgress.style.width = `${Math.min(Math.max(dayProgress, 5), 100)}%`;
@@ -165,12 +176,18 @@ function updateSummary(data) {
     high52HighEl.textContent = `₹${formatNumber(s.high_52w)}`;
     prevCloseEl.textContent = `₹${formatNumber(s.prev_close)}`;
 
+    // 52-week range percentage progress
     const yearRangeSpan = s.high_52w - s.low_52w;
     const yearProgress = yearRangeSpan > 0 ? ((s.latest_close - s.low_52w) / yearRangeSpan) * 100 : 50;
     yearRangeProgress.style.width = `${Math.min(Math.max(yearProgress, 5), 100)}%`;
 
     latestVolumeEl.textContent = formatVolume(s.volume);
     totalRecordCountEl.textContent = s.total_records.toLocaleString();
+
+    const chartRangeLabel = document.getElementById("chartRangeLabel");
+    if (chartRangeLabel && allRecords.length > 0) {
+        chartRangeLabel.textContent = `From ${allRecords[allRecords.length - 1].Date} to ${allRecords[0].Date} (${allRecords.length.toLocaleString()} observations)`;
+    }
 }
 
 function renderTable() {

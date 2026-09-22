@@ -32,30 +32,79 @@ class DataLoader:
     def load_ohlcv(
         self,
         ticker: str,
-        start_date: str = "2019-01-01",
+        start_date: Optional[str] = None,
         end_date: Optional[str] = None,
+        period: Optional[str] = "max",
         force_reload: bool = False,
     ) -> pd.DataFrame:
-        """Loads historical OHLCV data with raw and adjusted prices.
+        """Loads historical OHLCV data with raw and adjusted prices from the very first day of trading.
 
         Includes Dividends and Stock Splits.
         """
         safe_ticker = _sanitize_ticker(ticker)
         cache_file = self.cache_dir / f"{safe_ticker}_ohlcv.parquet"
+        cache_meta_file = self.cache_dir / f"{safe_ticker}_ohlcv.meta.json"
+
+        is_max_request = (period == "max" or start_date is None)
 
         if not force_reload and cache_file.exists():
-            logger.info("Loading cached OHLCV for %s from %s", ticker, cache_file)
-            df = pd.read_parquet(cache_file)
-            return df
+            try:
+                # Check if cache holds full history when max is requested
+                cache_is_max = False
+                if cache_meta_file.exists():
+                    try:
+                        with open(cache_meta_file, "r", encoding="utf-8") as f:
+                            meta = json.load(f)
+                            cache_is_max = meta.get("is_max_history", False)
+                    except Exception:
+                        cache_is_max = False
 
-        logger.info("Fetching OHLCV for %s from Yahoo Finance...", ticker)
+                df = pd.read_parquet(cache_file)
+                if not df.empty and "Date" in df.columns:
+                    df["Date"] = pd.to_datetime(df["Date"])
+                    if start_date and not is_max_request:
+                        req_start = pd.to_datetime(start_date)
+                        cache_min = df["Date"].min()
+                        if cache_min <= req_start + pd.Timedelta(days=7):
+                            logger.info("Loading cached OHLCV for %s from %s", ticker, cache_file)
+                            filtered = df[df["Date"] >= req_start]
+                            if end_date:
+                                filtered = filtered[filtered["Date"] <= pd.to_datetime(end_date)]
+                            return filtered.reset_index(drop=True)
+                        else:
+                            logger.info("Cache for %s starts at %s, but %s requested. Re-fetching full history...",
+                                        ticker, cache_min.date(), req_start.date())
+                    elif is_max_request:
+                        if cache_is_max:
+                            logger.info("Loading full cached day-1 OHLCV for %s (rows: %d, first: %s)",
+                                        ticker, len(df), df["Date"].min().date())
+                            if end_date:
+                                df = df[df["Date"] <= pd.to_datetime(end_date)]
+                            return df.reset_index(drop=True)
+                        else:
+                            logger.info("Cache for %s is not verified day-1 history. Re-fetching full max history...", ticker)
+            except Exception as e:
+                logger.warning("Error reading cache file %s: %s", cache_file, e)
+
+        logger.info("Fetching complete history from day 1 for %s from Yahoo Finance...", ticker)
         yf_ticker = yf.Ticker(ticker)
-        df = yf_ticker.history(
-            start=start_date,
-            end=end_date,
-            auto_adjust=self.config.auto_adjust,
-            actions=True,
-        )
+
+        if start_date and not is_max_request:
+            df = yf_ticker.history(
+                start=start_date,
+                end=end_date,
+                auto_adjust=self.config.auto_adjust,
+                actions=True,
+            )
+        else:
+            # Fetch all records from the very first day of trading
+            df = yf_ticker.history(
+                period="max",
+                auto_adjust=self.config.auto_adjust,
+                actions=True,
+            )
+            if end_date and not df.empty:
+                df = df[df.index <= pd.to_datetime(end_date)]
 
         if df.empty:
             logger.warning("No OHLCV data returned for %s", ticker)
@@ -81,12 +130,45 @@ class DataLoader:
         df = df[expected_cols].sort_values("Date").reset_index(drop=True)
 
         try:
-            df.to_parquet(cache_file, index=False)
-            logger.info("Saved %s OHLCV to cache: %s (rows: %d)", ticker, cache_file, len(df))
+            if cache_file.exists():
+                try:
+                    old_df = pd.read_parquet(cache_file)
+                    old_df["Date"] = pd.to_datetime(old_df["Date"])
+                    merged = pd.concat([old_df, df], ignore_index=True).drop_duplicates(subset=["Date"], keep="last")
+                    merged = merged.sort_values("Date").reset_index(drop=True)
+                    merged.to_parquet(cache_file, index=False)
+                    saved_df = merged
+                    logger.info("Merged and saved %s OHLCV to cache: %s (total rows: %d)", ticker, cache_file, len(merged))
+                except Exception:
+                    df.to_parquet(cache_file, index=False)
+                    saved_df = df
+            else:
+                df.to_parquet(cache_file, index=False)
+                saved_df = df
+                logger.info("Saved %s OHLCV to cache: %s (rows: %d)", ticker, cache_file, len(df))
+
+            # Write metadata
+            meta_data = {
+                "ticker": ticker,
+                "is_max_history": is_max_request or cache_meta_file.exists(),
+                "first_date": str(saved_df["Date"].min().date()),
+                "last_date": str(saved_df["Date"].max().date()),
+                "total_rows": len(saved_df),
+            }
+            with open(cache_meta_file, "w", encoding="utf-8") as f:
+                json.dump(meta_data, f, indent=2)
+
         except Exception as e:
             logger.warning("Could not write cache file %s: %s", cache_file, e)
 
-        return df
+        if start_date and not is_max_request:
+            req_start = pd.to_datetime(start_date)
+            filtered = df[df["Date"] >= req_start]
+            if end_date:
+                filtered = filtered[filtered["Date"] <= pd.to_datetime(end_date)]
+            return filtered.reset_index(drop=True)
+
+        return df.reset_index(drop=True)
 
     def load_benchmark(
         self,

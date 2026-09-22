@@ -45,14 +45,16 @@ def get_stocks():
 @app.get("/api/data")
 def get_stock_data(
     ticker: str = Query("RELIANCE.NS", description="Stock ticker symbol (e.g. RELIANCE.NS)"),
-    start: Optional[str] = Query("2019-01-01", description="Start date YYYY-MM-DD"),
+    start: Optional[str] = Query(None, description="Start date YYYY-MM-DD"),
+    period: Optional[str] = Query("max", description="Timeframe period (1mo, 6mo, 1y, 3y, max)"),
     limit: Optional[int] = Query(None, description="Max number of records to return (None for all)"),
 ):
-    """Loads and returns date-wise OHLCV records for the selected stock."""
+    """Loads and returns date-wise OHLCV records for the selected stock from its very first trading day."""
     ticker_info = STOCKS_BY_SYMBOL.get(ticker, {"symbol": ticker, "name": ticker, "sector": "Market"})
 
     try:
-        df = loader.load_ohlcv(ticker, start_date=start or "2019-01-01")
+        # Always fetch complete history from day 1
+        df = loader.load_ohlcv(ticker, period="max")
         if df.empty:
             raise HTTPException(status_code=404, detail=f"No data found for ticker {ticker}")
 
@@ -77,6 +79,7 @@ def get_stock_data(
         low_52w = float(window_52w["Low"].min())
 
         summary = {
+            "first_trading_date": str(cleaned["Date"].min().strftime("%Y-%m-%d")),
             "latest_date": str(latest_row["Date"].strftime("%Y-%m-%d")),
             "latest_close": round(close_val, 2),
             "prev_close": round(prev_close, 2),
@@ -91,7 +94,12 @@ def get_stock_data(
             "total_records": len(cleaned),
         }
 
-        records_df = cleaned.sort_values("Date", ascending=False)
+        # Filter by timeframe if a sub-period is chosen (1mo, 6mo, 1y, 3y)
+        display_df = cleaned.copy()
+        if period and period != "max" and start:
+            display_df = display_df[display_df["Date"] >= pd.to_datetime(start)]
+
+        records_df = display_df.sort_values("Date", ascending=False)
         if limit:
             records_df = records_df.head(limit)
 
