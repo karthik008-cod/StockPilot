@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StockPilot | NIFTY 50 Market Data Explorer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="glow-orb orb-1"></div>
+    <div class="glow-orb orb-2"></div>
+
+    <div class="app-container">
+        <header class="navbar">
+            <div class="nav-brand">
+                <div class="brand-logo">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                        <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+                        <polyline points="2 17 12 22 22 17"></polyline>
+                        <polyline points="2 12 12 17 22 12"></polyline>
+                    </svg>
+                </div>
+                <div>
+                    <div class="brand-title">StockPilot <span class="brand-badge">PRO</span></div>
+                    <div class="brand-sub">NIFTY 50 Historical Data & Preprocessing Engine</div>
+                </div>
+            </div>
+
+            <div class="nav-status">
+                <span class="status-indicator live"></span>
+                <span class="status-text">NSE Market Feed (Yahoo Finance)</span>
+            </div>
+        </header>
+
+        <section class="toolbar-card">
+            <div class="toolbar-row">
+                <div class="control-group stock-selector-group">
+                    <label for="stockSelect" class="control-label">Select NIFTY 50 Stock</label>
+                    <div class="select-wrapper">
+                        <select id="stockSelect" class="custom-select">
+                            <option value="" disabled selected>Loading NIFTY 50 stocks...</option>
+                        </select>
+                        <span class="select-arrow">▼</span>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <label class="control-label">Timeframe</label>
+                    <div class="button-toggle-group">
+                        <button class="toggle-btn" data-period="1mo">1M</button>
+                        <button class="toggle-btn" data-period="6mo">6M</button>
+                        <button class="toggle-btn" data-period="1y">1Y</button>
+                        <button class="toggle-btn" data-period="3y">3Y</button>
+                        <button class="toggle-btn active" data-period="max">Max</button>
+                    </div>
+                </div>
+
+                <div class="control-group search-group">
+                    <label for="tableSearch" class="control-label">Filter Records</label>
+                    <div class="search-wrapper">
+                        <input type="text" id="tableSearch" placeholder="Search by Date (e.g. 2024-03)..." class="search-input">
+                        <span class="search-icon">🔍</span>
+                    </div>
+                </div>
+
+                <div class="toolbar-actions">
+                    <button id="refreshBtn" class="btn btn-secondary">
+                        <span class="btn-icon">↻</span> Refresh
+                    </button>
+                    <button id="exportCsvBtn" class="btn btn-primary">
+                        <span class="btn-icon">📥</span> Export CSV
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <section id="summaryRibbon" class="summary-grid">
+            <div class="summary-card main-stock-card">
+                <div class="stock-header">
+                    <div id="companyName" class="company-name">Loading...</div>
+                    <div class="ticker-badges">
+                        <span id="tickerBadge" class="ticker-badge">---</span>
+                        <span id="sectorBadge" class="sector-badge">---</span>
+                    </div>
+                </div>
+                <div class="price-display">
+                    <span id="latestPrice" class="price-val">₹0.00</span>
+                    <span id="changeBadge" class="change-badge">+0.00 (+0.00%)</span>
+                </div>
+                <div class="as-of-date">Latest Date: <span id="latestDate">--</span></div>
+            </div>
+
+            <div class="summary-card">
+                <div class="card-label">Day's Range</div>
+                <div class="range-display">
+                    <div class="range-values">
+                        <span id="dayLow" class="val-low">₹0.00</span>
+                        <span id="dayHigh" class="val-high">₹0.00</span>
+                    </div>
+                    <div class="range-bar-bg">
+                        <div id="dayRangeProgress" class="range-bar-fill" style="width: 50%;"></div>
+                    </div>
+                    <div class="range-open">Open: <span id="dayOpen">₹0.00</span></div>
+                </div>
+            </div>
+
+            <div class="summary-card">
+                <div class="card-label">52-Week Range</div>
+                <div class="range-display">
+                    <div class="range-values">
+                        <span id="high52Low" class="val-low">₹0.00</span>
+                        <span id="high52High" class="val-high">₹0.00</span>
+                    </div>
+                    <div class="range-bar-bg">
+                        <div id="yearRangeProgress" class="range-bar-fill gold-fill" style="width: 50%;"></div>
+                    </div>
+                    <div class="range-open">Previous Close: <span id="prevClose">₹0.00</span></div>
+                </div>
+            </div>
+
+            <div class="summary-card">
+                <div class="card-label">Volume & Records</div>
+                <div class="stat-value" id="latestVolume">0</div>
+                <div class="stat-sub">
+                    Total Records Loaded: <strong id="totalRecordCount">0</strong>
+                </div>
+            </div>
+        </section>
+
+        <section class="chart-card">
+            <div class="chart-header">
+                <div class="chart-title">
+                    <span>Price & Volume Trend</span>
+                    <span id="chartRangeLabel" class="chart-subtitle">All Historical Observations</span>
+                </div>
+                <div id="chartHoverInfo" class="chart-hover-info">
+                    Hover over chart to view OHLCV details
+                </div>
+            </div>
+            <div class="canvas-container">
+                <canvas id="priceChart"></canvas>
+            </div>
+        </section>
+
+        <section class="table-card">
+            <div class="table-header-bar">
+                <div class="table-title">
+                    <span>Date-Wise Records (OHLCV)</span>
+                    <span id="recordsBadge" class="records-badge">0 Rows</span>
+                </div>
+                <div class="pagination-controls">
+                    <label for="pageSizeSelect" class="page-label">Rows per page:</label>
+                    <select id="pageSizeSelect" class="page-select">
+                        <option value="25">25</option>
+                        <option value="50" selected>50</option>
+                        <option value="100">100</option>
+                        <option value="250">250</option>
+                        <option value="all">All Records</option>
+                    </select>
+                    <div class="pager-buttons">
+                        <button id="prevPageBtn" class="pager-btn" disabled>‹</button>
+                        <span id="pageIndicator" class="page-indicator">Page 1 of 1</span>
+                        <button id="nextPageBtn" class="pager-btn" disabled>›</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="table-responsive">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th data-sort="Date">Date <span class="sort-icon">↕</span></th>
+                            <th data-sort="Open">Open (₹) <span class="sort-icon">↕</span></th>
+                            <th data-sort="High">High (₹) <span class="sort-icon">↕</span></th>
+                            <th data-sort="Low">Low (₹) <span class="sort-icon">↕</span></th>
+                            <th data-sort="Close">Close (₹) <span class="sort-icon">↕</span></th>
+                            <th data-sort="Adj_Close">Adj Close (₹) <span class="sort-icon">↕</span></th>
+                            <th data-sort="Volume">Volume <span class="sort-icon">↕</span></th>
+                            <th data-sort="Change">Day Change (₹) <span class="sort-icon">↕</span></th>
+                            <th data-sort="Change_Pct">Change (%) <span class="sort-icon">↕</span></th>
+                            <th data-sort="Return_1d_Pct">1D Return (%) <span class="sort-icon">↕</span></th>
+                        </tr>
+                    </thead>
+                    <tbody id="recordsTableBody">
+                        <tr>
+                            <td colspan="10" class="loading-state">
+                                <div class="spinner"></div>
+                                <span>Loading records...</span>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>

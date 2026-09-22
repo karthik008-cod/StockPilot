@@ -1,0 +1,65 @@
+# StockPilot Pipeline Configuration
+
+market:
+  benchmark_ticker: "^NSEI"               # NIFTY 50 benchmark index
+  default_tickers:
+    - "RELIANCE.NS"                       # Energy / Conglomerate
+    - "TCS.NS"                             # IT Services
+    - "HDFCBANK.NS"                        # Private Banking
+    - "INFY.NS"                            # IT Services
+  sector_map:
+    "RELIANCE.NS": "^CNXENERGY"            # NIFTY Energy
+    "TCS.NS": "^CNXIT"                     # NIFTY IT
+    "INFY.NS": "^CNXIT"                    # NIFTY IT
+    "HDFCBANK.NS": "^NSEBANK"              # NIFTY Bank
+    "ICICIBANK.NS": "^NSEBANK"             # NIFTY Bank
+  start_date: "2019-01-01"
+  end_date: null                          # null implies latest available date
+
+data:
+  cache_dir: "data/raw"
+  processed_dir: "data/processed"
+  scalers_dir: "data/scalers"
+  fundamental_lag_days: 45                # Days after quarter-end before reporting is assumed known
+  auto_adjust: false                      # Keep raw OHLCV alongside Adj Close
+
+features:
+  returns:
+    horizons: [1, 5, 21]
+  volatility:
+    windows: [10, 20, 60]
+  moving_averages:
+    sma_windows: [20, 50, 200]
+    ema_windows: [12, 26, 50]
+  rsi:
+    window: 14
+  macd:
+    fast: 12
+    slow: 26
+    signal: 9
+  bollinger_bands:
+    window: 20
+    num_std: 2.0
+  atr:
+    window: 14
+  adx:
+    window: 14
+  stochastic:
+    k_window: 14
+    d_window: 3
+    smooth_k: 3
+  relative_volume:
+    window: 20
+  extremes_52w:
+    window: 252
+  beta_window: 60
+
+ml:
+  target_horizons: [5, 10, 20]            # Future return target days
+  split:
+    train_ratio: 0.70
+    val_ratio: 0.15
+    test_ratio: 0.15
+    embargo_days: 20                      # Buffer between splits to prevent multi-day target overlap
+  scaler:
+    method: "robust"                      # "robust" or "standard"
