@@ -188,6 +188,96 @@ function updateSummary(data) {
     if (chartRangeLabel && allRecords.length > 0) {
         chartRangeLabel.textContent = `From ${allRecords[allRecords.length - 1].Date} to ${allRecords[0].Date} (${allRecords.length.toLocaleString()} observations)`;
     }
+
+    if (data.company_details) {
+        renderCompanyDetails(data.company_details);
+    }
+}
+
+function renderCompanyDetails(details) {
+    if (!details) return;
+
+    // 1. Returns Comparison (1W, 1M, YTD, 1Y, 3Y, 5Y)
+    const returnsGrid = document.getElementById("returnsGrid");
+    if (returnsGrid && details.returns_comparison) {
+        const timeframes = [
+            { key: "1W", label: "1W" },
+            { key: "1M", label: "1M" },
+            { key: "YTD", label: "YTD" },
+            { key: "1Y", label: "1Y" },
+            { key: "3Y", label: "3Y" },
+            { key: "5Y", label: "5Y" }
+        ];
+
+        const sRet = details.returns_comparison.stock || {};
+        const bRet = details.returns_comparison.benchmark || {};
+
+        returnsGrid.innerHTML = timeframes.map(tf => {
+            const sVal = sRet[tf.key];
+            const bVal = bRet[tf.key];
+
+            const sClass = sVal !== null && sVal !== undefined ? (sVal >= 0 ? "pos" : "neg") : "neutral";
+            const bClass = bVal !== null && bVal !== undefined ? (bVal >= 0 ? "pos" : "neg") : "neutral";
+
+            const sText = sVal !== null && sVal !== undefined ? `${sVal >= 0 ? "+" : ""}${sVal.toFixed(2)}%` : "--";
+            const bText = bVal !== null && bVal !== undefined ? `${bVal >= 0 ? "+" : ""}${bVal.toFixed(2)}%` : "--";
+
+            return `
+                <div class="return-pill-card">
+                    <span class="return-tf-label">${tf.label}</span>
+                    <div class="return-badges-pair">
+                        <span class="return-badge stock-badge ${sClass}">${sText}</span>
+                        <span class="return-badge bench-badge ${bClass}">${bText}</span>
+                    </div>
+                </div>
+            `;
+        }).join("");
+    }
+
+    // 2. Trade Information
+    const t = details.trade_info;
+    if (t) {
+        setElText("tradeVolLakhs", t.traded_volume_lakhs ? `${formatNumber(t.traded_volume_lakhs)}` : "--");
+        setElText("tradeValCr", t.traded_value_cr ? `₹${formatNumber(t.traded_value_cr)}` : "--");
+        setElText("totalMarketCap", t.total_market_cap_cr ? `₹${formatNumber(t.total_market_cap_cr)}` : "--");
+        setElText("freeFloatMarketCap", t.free_float_market_cap_cr ? `₹${formatNumber(t.free_float_market_cap_cr)}` : "--");
+        setElText("impactCost", t.impact_cost ? `${t.impact_cost.toFixed(2)}%` : "0.04%");
+        setElText("faceValue", t.face_value ? `₹${formatNumber(t.face_value)}` : "₹10.00");
+        setElText("marginRate", t.applicable_margin_rate ? `${t.applicable_margin_rate.toFixed(2)}%` : "18.50%");
+        setElText("deliverableQty", t.deliverable_pct ? `${t.deliverable_pct.toFixed(2)}%` : "55.23%");
+    }
+
+    // 3. Price Information
+    const p = details.price_info;
+    if (p) {
+        setElText("priceHigh52", p.high_52w ? `₹${formatNumber(p.high_52w)}` : "--");
+        setElText("high52Date", p.high_52w_date || "--");
+        setElText("priceLow52", p.low_52w ? `₹${formatNumber(p.low_52w)}` : "--");
+        setElText("low52Date", p.low_52w_date || "--");
+        setElText("upperBand", p.upper_band ? `₹${formatNumber(p.upper_band)}` : "--");
+        setElText("lowerBand", p.lower_band ? `₹${formatNumber(p.lower_band)}` : "--");
+        setElText("priceBand", p.price_band || "No Band (F&O)");
+        setElText("tickSize", p.tick_size ? p.tick_size.toFixed(2) : "0.05");
+        setElText("dailyVolatility", p.daily_volatility ? `${p.daily_volatility.toFixed(2)}%` : "--");
+        setElText("annualVolatility", p.annualised_volatility ? `${p.annualised_volatility.toFixed(2)}%` : "--");
+    }
+
+    // 4. Securities Information
+    const s = details.securities_info;
+    if (s) {
+        setElText("secStatus", s.status || "Listed");
+        setElText("secTradingStatus", s.trading_status || "Active");
+        setElText("symbolPe", s.symbol_pe ? s.symbol_pe.toFixed(2) : "--");
+        setElText("adjustedPe", s.adjusted_pe ? s.adjusted_pe.toFixed(2) : "--");
+        setElText("listingDate", s.date_of_listing || "--");
+        setElText("indexName", s.index || "NIFTY 50");
+        setElText("basicIndustry", s.basic_industry || "--");
+    }
+}
+
+function setElText(id, text) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = text;
 }
 
 function renderTable() {

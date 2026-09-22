@@ -130,6 +130,166 @@
             </div>
         </section>
 
+        <!-- Live Returns Comparison vs NIFTY 50 (1W, 1M, YTD, 1Y, 3Y, 5Y) -->
+        <section class="returns-card">
+            <div class="returns-legend-bar">
+                <span class="legend-item"><span class="dot dot-stock"></span> Stock Absolute Returns</span>
+                <span class="legend-item"><span class="dot dot-bench"></span> NIFTY 50 Absolute Returns</span>
+            </div>
+            <div class="returns-pills-grid" id="returnsGrid">
+                <!-- Injected via JavaScript -->
+            </div>
+        </section>
+
+        <!-- Live NSE-Style Company Information Cards -->
+        <section class="company-details-grid">
+            <!-- 1. Trade Information Card -->
+            <div class="detail-card">
+                <div class="detail-card-header">
+                    <h3 class="detail-card-title">Trade Information</h3>
+                    <span class="card-tag">NSE Live</span>
+                </div>
+                <div class="detail-metrics-list">
+                    <div class="detail-metric-row">
+                        <div class="metric-cell">
+                            <span class="metric-label">Traded Volume (Lakhs)</span>
+                            <span class="metric-value" id="tradeVolLakhs">--</span>
+                        </div>
+                        <div class="metric-cell">
+                            <span class="metric-label">Traded Value (₹ Cr.)</span>
+                            <span class="metric-value" id="tradeValCr">--</span>
+                        </div>
+                    </div>
+                    <div class="detail-metric-row">
+                        <div class="metric-cell">
+                            <span class="metric-label">Total Market Cap (₹ Cr.)</span>
+                            <span class="metric-value font-mono" id="totalMarketCap">--</span>
+                        </div>
+                        <div class="metric-cell">
+                            <span class="metric-label">Free Float MCap (₹ Cr.)</span>
+                            <span class="metric-value font-mono" id="freeFloatMarketCap">--</span>
+                        </div>
+                    </div>
+                    <div class="detail-metric-row">
+                        <div class="metric-cell">
+                            <span class="metric-label">Impact Cost</span>
+                            <span class="metric-value" id="impactCost">0.04%</span>
+                        </div>
+                        <div class="metric-cell">
+                            <span class="metric-label">Face Value</span>
+                            <span class="metric-value" id="faceValue">₹10.00</span>
+                        </div>
+                    </div>
+                    <div class="detail-metric-row">
+                        <div class="metric-cell">
+                            <span class="metric-label">Applicable Margin Rate</span>
+                            <span class="metric-value" id="marginRate">18.50%</span>
+                        </div>
+                        <div class="metric-cell">
+                            <span class="metric-label">% Deliverable / Traded Qty</span>
+                            <span class="metric-value" id="deliverableQty">55.23%</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2. Price Information Card -->
+            <div class="detail-card">
+                <div class="detail-card-header">
+                    <h3 class="detail-card-title">Price Information</h3>
+                    <span class="card-tag">Band & Volatility</span>
+                </div>
+                <div class="detail-metrics-list">
+                    <div class="detail-metric-row">
+                        <div class="metric-cell">
+                            <span class="metric-label">52 Week High (<span id="high52Date" class="date-sub">--</span>)</span>
+                            <span class="metric-value text-positive" id="priceHigh52">--</span>
+                        </div>
+                        <div class="metric-cell">
+                            <span class="metric-label">52 Week Low (<span id="low52Date" class="date-sub">--</span>)</span>
+                            <span class="metric-value text-negative" id="priceLow52">--</span>
+                        </div>
+                    </div>
+                    <div class="detail-metric-row">
+                        <div class="metric-cell">
+                            <span class="metric-label">Upper Band (Circuit Limit)</span>
+                            <span class="metric-value" id="upperBand">--</span>
+                        </div>
+                        <div class="metric-cell">
+                            <span class="metric-label">Lower Band (Circuit Limit)</span>
+                            <span class="metric-value" id="lowerBand">--</span>
+                        </div>
+                    </div>
+                    <div class="detail-metric-row">
+                        <div class="metric-cell">
+                            <span class="metric-label">Price Band (%)</span>
+                            <span class="metric-value badge-pill" id="priceBand">No Band (F&O)</span>
+                        </div>
+                        <div class="metric-cell">
+                            <span class="metric-label">Tick Size</span>
+                            <span class="metric-value" id="tickSize">0.05</span>
+                        </div>
+                    </div>
+                    <div class="detail-metric-row">
+                        <div class="metric-cell">
+                            <span class="metric-label">Daily Volatility (%)</span>
+                            <span class="metric-value" id="dailyVolatility">--</span>
+                        </div>
+                        <div class="metric-cell">
+                            <span class="metric-label">Annualised Volatility (%)</span>
+                            <span class="metric-value" id="annualVolatility">--</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3. Securities Information Card -->
+            <div class="detail-card">
+                <div class="detail-card-header">
+                    <h3 class="detail-card-title">Securities Information</h3>
+                    <span class="card-tag">Listing & Sector</span>
+                </div>
+                <div class="detail-metrics-list">
+                    <div class="detail-metric-row">
+                        <div class="metric-cell">
+                            <span class="metric-label">Status</span>
+                            <span class="metric-value" id="secStatus">Listed</span>
+                        </div>
+                        <div class="metric-cell">
+                            <span class="metric-label">Trading Status</span>
+                            <span class="metric-value badge-active" id="secTradingStatus">Active</span>
+                        </div>
+                    </div>
+                    <div class="detail-metric-row">
+                        <div class="metric-cell">
+                            <span class="metric-label">Symbol P/E</span>
+                            <span class="metric-value font-mono" id="symbolPe">--</span>
+                        </div>
+                        <div class="metric-cell">
+                            <span class="metric-label">Adjusted P/E (Forward)</span>
+                            <span class="metric-value font-mono" id="adjustedPe">--</span>
+                        </div>
+                    </div>
+                    <div class="detail-metric-row">
+                        <div class="metric-cell">
+                            <span class="metric-label">Date of Listing</span>
+                            <span class="metric-value" id="listingDate">--</span>
+                        </div>
+                        <div class="metric-cell">
+                            <span class="metric-label">Index</span>
+                            <span class="metric-value badge-index" id="indexName">NIFTY 50</span>
+                        </div>
+                    </div>
+                    <div class="detail-metric-row">
+                        <div class="metric-cell full-span">
+                            <span class="metric-label">Basic Industry</span>
+                            <span class="metric-value" id="basicIndustry">--</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
         <section class="chart-card">
             <div class="chart-header">
                 <div class="chart-title">

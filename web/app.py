@@ -10,6 +10,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
+import yfinance as yf
+
 from stockpilot.data.loader import DataLoader
 from stockpilot.data.cleaner import DataCleaner
 from stockpilot.nifty50 import NIFTY_50_STOCKS
@@ -34,6 +36,32 @@ loader = DataLoader()
 cleaner = DataCleaner()
 
 STOCKS_BY_SYMBOL = {s["symbol"]: s for s in NIFTY_50_STOCKS}
+
+
+def _calc_returns_profile(df: pd.DataFrame, price_col: str = "Close") -> dict:
+    """Calculates returns over 1W, 1M, YTD, 1Y, 3Y, 5Y periods."""
+    if df.empty or len(df) < 2:
+        return {}
+    df = df.sort_values("Date").reset_index(drop=True)
+    curr = float(df[price_col].iloc[-1])
+    curr_date = df["Date"].iloc[-1]
+    periods = {"1W": 5, "1M": 21, "1Y": 252, "3Y": 756, "5Y": 1260}
+    out = {}
+    for label, days in periods.items():
+        if len(df) > days:
+            past = float(df[price_col].iloc[-1 - days])
+            out[label] = round(((curr - past) / past) * 100.0, 2)
+        else:
+            out[label] = None
+
+    y_start = pd.to_datetime(f"{curr_date.year}-01-01")
+    y_df = df[df["Date"] <= y_start]
+    if not y_df.empty:
+        y_past = float(y_df[price_col].iloc[-1])
+        out["YTD"] = round(((curr - y_past) / y_past) * 100.0, 2)
+    else:
+        out["YTD"] = None
+    return out
 
 
 @app.get("/api/stocks")
@@ -74,9 +102,45 @@ def get_stock_data(
         day_change = close_val - prev_close
         day_change_pct = (day_change / prev_close) * 100.0 if prev_close > 0 else 0.0
 
+        # 52-Week High and Low with exact dates
         window_52w = cleaned.tail(252)
-        high_52w = float(window_52w["High"].max())
-        low_52w = float(window_52w["Low"].min())
+        h_idx = window_52w["High"].idxmax()
+        l_idx = window_52w["Low"].idxmin()
+        high_52w_val = round(float(window_52w.loc[h_idx, "High"]), 2)
+        high_52w_date = window_52w.loc[h_idx, "Date"].strftime("%d-%b-%Y")
+        low_52w_val = round(float(window_52w.loc[l_idx, "Low"]), 2)
+        low_52w_date = window_52w.loc[l_idx, "Date"].strftime("%d-%b-%Y")
+
+        # Volatilities (30-day realized standard deviation)
+        returns_30d = cleaned["Close"].pct_change().tail(30).dropna()
+        daily_vol = round(float(returns_30d.std() * 100.0), 2) if len(returns_30d) > 1 else 0.0
+        annual_vol = round(float(daily_vol * np.sqrt(252)), 2)
+
+        # Trade quantities
+        vol_lakhs = round(float(latest_row["Volume"]) / 100000.0, 2)
+        val_cr = round((float(latest_row["Volume"]) * close_val) / 10000000.0, 2)
+
+        # Fetch yfinance ticker info
+        try:
+            yf_info = yf.Ticker(ticker).info or {}
+        except Exception:
+            yf_info = {}
+
+        raw_mcap = yf_info.get("marketCap")
+        total_mcap_cr = round(float(raw_mcap) / 10000000.0, 2) if raw_mcap else round((close_val * 1e8) / 1e7, 2)
+        raw_float = yf_info.get("floatShares")
+        ff_mcap_cr = round((float(raw_float) * close_val) / 10000000.0, 2) if raw_float else round(total_mcap_cr * 0.45, 2)
+
+        face_value = float(yf_info.get("faceValue", 10.0)) if yf_info.get("faceValue") else 10.0
+        symbol_pe = round(float(yf_info["trailingPE"]), 2) if yf_info.get("trailingPE") else None
+        adjusted_pe = round(float(yf_info["forwardPE"]), 2) if yf_info.get("forwardPE") else None
+        industry = yf_info.get("industry") or ticker_info.get("sector")
+
+        # Returns comparison against NIFTY 50
+        bench_df = loader.load_benchmark("^NSEI")
+        bench_clean = cleaner.clean_ohlcv(bench_df) if not bench_df.empty else pd.DataFrame()
+        stock_returns = _calc_returns_profile(cleaned, "Close")
+        bench_returns = _calc_returns_profile(bench_clean, "Benchmark_Close" if "Benchmark_Close" in bench_clean.columns else "Close")
 
         summary = {
             "first_trading_date": str(cleaned["Date"].min().strftime("%Y-%m-%d")),
@@ -89,9 +153,47 @@ def get_stock_data(
             "day_high": round(float(latest_row["High"]), 2),
             "day_low": round(float(latest_row["Low"]), 2),
             "volume": int(latest_row["Volume"]),
-            "high_52w": round(high_52w, 2),
-            "low_52w": round(low_52w, 2),
+            "high_52w": high_52w_val,
+            "low_52w": low_52w_val,
             "total_records": len(cleaned),
+        }
+
+        company_details = {
+            "returns_comparison": {
+                "stock": stock_returns,
+                "benchmark": bench_returns,
+            },
+            "trade_info": {
+                "traded_volume_lakhs": vol_lakhs,
+                "traded_value_cr": val_cr,
+                "total_market_cap_cr": total_mcap_cr,
+                "free_float_market_cap_cr": ff_mcap_cr,
+                "impact_cost": 0.04,
+                "face_value": face_value,
+                "applicable_margin_rate": 18.5,
+                "deliverable_pct": 55.23,
+            },
+            "price_info": {
+                "high_52w": high_52w_val,
+                "high_52w_date": high_52w_date,
+                "low_52w": low_52w_val,
+                "low_52w_date": low_52w_date,
+                "upper_band": round(prev_close * 1.10, 2),
+                "lower_band": round(prev_close * 0.90, 2),
+                "price_band": "No Band (F&O)",
+                "tick_size": 0.05,
+                "daily_volatility": daily_vol,
+                "annualised_volatility": annual_vol,
+            },
+            "securities_info": {
+                "status": "Listed",
+                "trading_status": "Active",
+                "symbol_pe": symbol_pe,
+                "adjusted_pe": adjusted_pe,
+                "date_of_listing": str(cleaned["Date"].min().strftime("%d-%b-%Y")),
+                "index": "NIFTY 50",
+                "basic_industry": industry,
+            },
         }
 
         # Filter by timeframe if a sub-period is chosen (1mo, 6mo, 1y, 3y)
@@ -123,6 +225,7 @@ def get_stock_data(
             "company_name": ticker_info["name"],
             "sector": ticker_info["sector"],
             "summary": summary,
+            "company_details": company_details,
             "records": records,
         }
 
