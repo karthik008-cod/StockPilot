@@ -14,11 +14,11 @@ import yfinance as yf
 
 from stockpilot.data.loader import DataLoader
 from stockpilot.data.cleaner import DataCleaner
-from stockpilot.nifty50 import NIFTY_50_STOCKS
+from stockpilot.universe import universe, BENCHMARK_INDICES
 
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="StockPilot NIFTY 50 Explorer")
+app = FastAPI(title="StockPilot Market Explorer (NIFTY 50 - 500)")
 
 app.add_middleware(
     CORSMiddleware,
@@ -34,8 +34,6 @@ STATIC_DIR.mkdir(parents=True, exist_ok=True)
 
 loader = DataLoader()
 cleaner = DataCleaner()
-
-STOCKS_BY_SYMBOL = {s["symbol"]: s for s in NIFTY_50_STOCKS}
 
 
 def _calc_returns_profile(df: pd.DataFrame, price_col: str = "Close") -> dict:
@@ -64,10 +62,34 @@ def _calc_returns_profile(df: pd.DataFrame, price_col: str = "Close") -> dict:
     return out
 
 
+@app.get("/api/tiers")
+def get_tiers():
+    """Returns available index tiers and broad benchmarks."""
+    return {
+        "tiers": ["ALL", "NIFTY 50", "NIFTY 100", "NIFTY 200", "NIFTY 500"],
+        "benchmarks": BENCHMARK_INDICES,
+    }
+
+
+@app.get("/api/sectors")
+def get_sectors():
+    """Returns unique sectors across the universe."""
+    return {"sectors": universe.get_all_sectors()}
+
+
 @app.get("/api/stocks")
-def get_stocks():
-    """Returns the full list of NIFTY 50 constituent stocks."""
-    return {"count": len(NIFTY_50_STOCKS), "stocks": NIFTY_50_STOCKS}
+def get_stocks(
+    tier: Optional[str] = Query("NIFTY 100", description="Index tier: ALL, NIFTY 50, NIFTY 100, NIFTY 200, NIFTY 500"),
+    sector: Optional[str] = Query(None, description="Sector filter"),
+    search: Optional[str] = Query(None, description="Search keyword"),
+):
+    """Returns constituent stocks filtered by tier, sector, and search query."""
+    tier_arg = None if (not tier or tier.upper() == "ALL") else tier
+    stocks = universe.get_stocks(index_tier=tier_arg, sector=sector)
+    if search and search.strip():
+        q = search.strip().lower()
+        stocks = [s for s in stocks if q in s["symbol"].lower() or q in s["name"].lower()]
+    return {"count": len(stocks), "tier": tier, "sector": sector, "stocks": stocks}
 
 
 @app.get("/api/data")
@@ -76,9 +98,11 @@ def get_stock_data(
     start: Optional[str] = Query(None, description="Start date YYYY-MM-DD"),
     period: Optional[str] = Query("max", description="Timeframe period (1mo, 6mo, 1y, 3y, max)"),
     limit: Optional[int] = Query(None, description="Max number of records to return (None for all)"),
+    benchmark: Optional[str] = Query("^NSEI", description="Benchmark to compare against (^NSEI, ^CRSLDX, ^CNX100)"),
 ):
     """Loads and returns date-wise OHLCV records for the selected stock from its very first trading day."""
-    ticker_info = STOCKS_BY_SYMBOL.get(ticker, {"symbol": ticker, "name": ticker, "sector": "Market"})
+    ticker_info = universe.get_stock(ticker) or {"symbol": ticker, "name": ticker, "sector": "Market", "indices": ["NIFTY 50"]}
+
 
     try:
         # Always fetch complete history from day 1
@@ -136,11 +160,12 @@ def get_stock_data(
         adjusted_pe = round(float(yf_info["forwardPE"]), 2) if yf_info.get("forwardPE") else None
         industry = yf_info.get("industry") or ticker_info.get("sector")
 
-        # Returns comparison against NIFTY 50
-        bench_df = loader.load_benchmark("^NSEI")
+        # Returns comparison against selected benchmark
+        bench_df = loader.load_benchmark(benchmark)
         bench_clean = cleaner.clean_ohlcv(bench_df) if not bench_df.empty else pd.DataFrame()
         stock_returns = _calc_returns_profile(cleaned, "Close")
-        bench_returns = _calc_returns_profile(bench_clean, "Benchmark_Close" if "Benchmark_Close" in bench_clean.columns else "Close")
+        bench_close_col = "Benchmark_Close" if "Benchmark_Close" in bench_clean.columns else "Close"
+        bench_returns = _calc_returns_profile(bench_clean, bench_close_col)
 
         summary = {
             "first_trading_date": str(cleaned["Date"].min().strftime("%Y-%m-%d")),
@@ -191,7 +216,7 @@ def get_stock_data(
                 "symbol_pe": symbol_pe,
                 "adjusted_pe": adjusted_pe,
                 "date_of_listing": str(cleaned["Date"].min().strftime("%d-%b-%Y")),
-                "index": "NIFTY 50",
+                "index": ", ".join(ticker_info.get("indices", ["NIFTY 50"])),
                 "basic_industry": industry,
             },
         }
@@ -218,7 +243,11 @@ def get_stock_data(
                 "Change": round(float(row["Change"]), 2),
                 "Change_Pct": round(float(row["Change_Pct"]), 2),
                 "Return_1d_Pct": round(float(row["Return_1d_Pct"]), 2) if not pd.isna(row["Return_1d_Pct"]) else 0.0,
+                "is_outlier": bool(row.get("is_outlier_return", False)),
+                "is_circuit": bool(row.get("is_circuit_day", False)),
+                "is_zero_vol": bool(row.get("is_zero_volume", False)),
             })
+
 
         return {
             "ticker": ticker,

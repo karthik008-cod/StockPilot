@@ -39,25 +39,34 @@ MODEL-READY PERSISTENCE (Parquet, CSV, and metadata JSON exports)
 
 ## ⚡ Key Features
 
-1. **Multi-Source Ingestion**:
-   - Daily OHLCV data with both raw and split/dividend-adjusted prices.
-   - Benchmark market index (**NIFTY 50 - `^NSEI`**).
-   - Sectoral indices (**`^CNXIT`**, **`^NSEBANK`**, **`^CNXENERGY`**).
+1. **Multi-Source Ingestion & Expanded Universe**:
+   - Covers official **NIFTY 50, NIFTY 100, NIFTY 200, and NIFTY 500** constituent equities (500+ stocks).
+   - Broad benchmark market indices (**NIFTY 50 - `^NSEI`**, **NIFTY 100 - `^CNX100`**, **NIFTY 200 - `^CNX200`**, **NIFTY 500 - `^CRSLDX`**, **NIFTY Next 50 - `^NSMIDCP`**).
+   - Sectoral indices (**`^NSEBANK`**, **`^CNXIT`**, **`^CNXENERGY`**, **`^CNXAUTO`**, **`^CNXPHARMA`**, **`^CNXFMCG`**, **`^CNXMETAL`**, etc.).
+   - Full day-1 historical OHLCV data with dividend and stock split adjustments.
+   - Resilient multi-threaded ingestion engine with persistent Parquet caching and rate-limit backoff.
    - Quarterly financial statements (Revenue, Net Income, EPS, Debt, Equity, Free Cash Flow).
-   - News headlines and sentiment polarity.
-   - Local raw caching to avoid API rate limits.
+   - News headlines and financial sentiment polarity scoring.
 
-2. **Strict Leakage Prevention**:
+2. **Hardened Data Cleaning & Quality Control**:
+   - **OHLC Consistency Repair**: Auto-repairs bad ticks where $High < \max(Open, Close)$ or $Low > \min(Open, Close)$.
+   - **Circuit Freeze Tagging**: Non-destructive tagging of locked upper/lower circuit days ($Open \approx High \approx Low \approx Close$).
+   - **Extreme Event Tagging**: 60-day rolling Median Absolute Deviation (MAD) Z-score detection without deleting genuine flash crashes or budget days.
+   - **Liquidity Checks**: Zero-volume detection and bounded forward-filling for trading suspension gaps.
+
+3. **Strict Leakage Prevention & Multi-Asset Alignment**:
    - **Point-in-Time Fundamentals**: 45-day reporting lag prevents quarterly results from leaking into past trading days.
+   - **Dual-Benchmark Alignment**: Aligns stocks against both NIFTY 50 and broad market NIFTY 500 on common trading calendars.
    - **Chronological Splitting with Embargo**: 20-day embargo buffer prevents overlapping multi-day target returns between Train, Validation, and Test sets.
    - **Train-Only Scaling**: Scalers are fitted exclusively on the Training set and persisted for production inference.
    - **Automated Leakage Audit**: Automated checks verify date monotonicity, target shifts, and scaler isolation.
 
-3. **NIFTY 50 Live Explorer Web App**:
-   - Fast, interactive UI to view all 50 constituent stocks.
-   - Detailed date-wise OHLCV records (1,600+ to 1,900+ rows).
+4. **Interactive Market Explorer Web App**:
+   - Browse across **NIFTY 50, NIFTY 100, NIFTY 200, or NIFTY 500** universes with dynamic tier tabs.
+   - Filter by specific industry sector (Banking, IT, Auto, Energy, FMCG, Pharma, etc.).
+   - Date-wise OHLCV records with circuit and outlier visual flags.
    - Dynamic price/volume trend chart with hover crosshairs.
-   - Date filtering, sorting, and 1-click CSV export.
+   - 1-click CSV export with data quality flags.
 
 ---
 
@@ -76,18 +85,32 @@ pip install -r requirements.txt
 
 ## 🚀 Usage
 
-### 1. Launch the NIFTY 50 Web Explorer
+### 1. Ingest Market Data for Any Tier
 ```bash
+# Download and clean full Day 1 historical data for NIFTY 100 + Benchmark Indices
+python scripts/import_market_data.py --tier "NIFTY 100" --workers 5
+
+# Scale ingestion to full NIFTY 500 broad universe
+python scripts/import_market_data.py --tier "NIFTY 500" --workers 6
+```
+
+### 2. Launch the Market Explorer Web App
+```bash
+# Using uvicorn directly
 python -m uvicorn web.app:app --host 127.0.0.1 --port 8000
+
+# Or run the batch file on Windows
+start_server.bat
 ```
 Open **[http://127.0.0.1:8000](http://127.0.0.1:8000)** in your browser.
 
-### 2. Run the Data Pipeline via CLI
+### 3. Run the Feature Engineering & ML Pipeline via CLI
 ```bash
 # Run pipeline for default configured universe (RELIANCE.NS, TCS.NS, HDFCBANK.NS, INFY.NS)
 python scripts/run_pipeline.py
 
 # Run for custom tickers and date range
+
 python scripts/run_pipeline.py --tickers RELIANCE.NS TCS.NS INFY.NS HDFCBANK.NS --start 2019-01-01
 
 # Bypass cache and re-download fresh data

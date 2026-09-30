@@ -8,7 +8,12 @@ import yaml
 
 @dataclass
 class MarketConfig:
-    benchmark_ticker: str = "^NSEI"
+    benchmark_ticker: str = "^NSEI"            # Primary large-cap benchmark (NIFTY 50)
+    broad_benchmark_ticker: str = "^CRSLDX"    # Broad-market benchmark (NIFTY 500)
+    index_tier: str = "NIFTY 100"              # Target constituent tier
+    benchmark_tickers: List[str] = field(default_factory=lambda: [
+        "^NSEI", "^CNX100", "^CNX200", "^CRSLDX", "^NSMIDCP"
+    ])
     default_tickers: List[str] = field(default_factory=lambda: [
         "RELIANCE.NS", "TCS.NS", "HDFCBANK.NS", "INFY.NS"
     ])
@@ -21,6 +26,17 @@ class MarketConfig:
     })
     start_date: str = "2019-01-01"
     end_date: Optional[str] = None
+
+    def get_sector_for_ticker(self, ticker: str) -> Optional[str]:
+        """Resolves the sectoral index symbol for a given stock ticker."""
+        if ticker in self.sector_map:
+            return self.sector_map[ticker]
+        from stockpilot.universe import universe
+        stock = universe.get_stock(ticker)
+        if stock and stock.get("sector"):
+            return universe.get_sector_ticker(stock["sector"])
+        return None
+
 
 
 @dataclass

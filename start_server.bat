@@ -1,8 +1,9 @@
 @echo off
-title StockPilot - NIFTY 50 Market Explorer
+title StockPilot - Market Explorer (NIFTY 50 - 500)
 echo ================================================================
-echo               StockPilot NIFTY 50 Market Explorer               
+echo           StockPilot Market Explorer (NIFTY 50 - 500)          
 echo ================================================================
+
 echo.
 
 :: Change working directory to script directory

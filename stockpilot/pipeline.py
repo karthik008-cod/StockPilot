@@ -84,9 +84,11 @@ class StockPilotPipeline:
             raise ValueError(f"No OHLCV data found for {ticker}")
 
         bench_ticker = self.config.market.benchmark_ticker
+        broad_ticker = getattr(self.config.market, "broad_benchmark_ticker", "^CRSLDX")
         bench_df = self.loader.load_benchmark(bench_ticker, start_date=start_date, end_date=end_date, force_reload=force_reload)
+        broad_df = self.loader.load_benchmark(broad_ticker, start_date=start_date, end_date=end_date, force_reload=force_reload, prefix="BroadBenchmark_")
 
-        sec_ticker = self.config.market.sector_map.get(ticker)
+        sec_ticker = self.config.market.get_sector_for_ticker(ticker) if hasattr(self.config.market, "get_sector_for_ticker") else self.config.market.sector_map.get(ticker)
         sec_df = self.loader.load_sector(sec_ticker, start_date=start_date, end_date=end_date, force_reload=force_reload) if sec_ticker else None
 
         fundamentals = self.loader.load_fundamentals(ticker, force_reload=force_reload)
@@ -94,6 +96,7 @@ class StockPilotPipeline:
 
         print(f"   [OK] Loaded Stock OHLCV: {len(stock_df)} rows")
         print(f"   [OK] Loaded Benchmark ({bench_ticker}): {len(bench_df)} rows")
+        print(f"   [OK] Loaded Broad Benchmark ({broad_ticker}): {len(broad_df)} rows")
         print(f"   [OK] Loaded Sector ({sec_ticker or 'None'}): {len(sec_df) if sec_df is not None else 0} rows")
         print(f"   [OK] Loaded Fundamentals: {len(fundamentals.get('quarterly_income', {}))} quarters")
         print(f"   [OK] Loaded News: {len(news_items)} articles")
@@ -102,14 +105,22 @@ class StockPilotPipeline:
         cleaned_df = self.cleaner.clean_ohlcv(stock_df, ticker_name=ticker)
         if bench_df is not None and not bench_df.empty:
             bench_df = self.cleaner.clean_ohlcv(bench_df, ticker_name=bench_ticker)
+        if broad_df is not None and not broad_df.empty:
+            broad_df = self.cleaner.clean_ohlcv(broad_df, ticker_name=broad_ticker)
         if sec_df is not None and not sec_df.empty:
             sec_df = self.cleaner.clean_ohlcv(sec_df, ticker_name=sec_ticker)
 
         print(f"   [OK] Cleaned & Validated OHLCV: {len(cleaned_df)} rows (0 invalid ticks)")
 
         self.print_pipeline_stage("3. MARKET + SECTOR + INDEX ALIGNMENT")
-        aligned_df = self.aligner.align_market_data(cleaned_df, benchmark_df=bench_df, sector_df=sec_df)
-        print(f"   [OK] Aligned Stock with Benchmark & Sector: {len(aligned_df)} rows")
+        aligned_df = self.aligner.align_market_data(
+            cleaned_df,
+            benchmark_df=bench_df,
+            sector_df=sec_df,
+            broad_benchmark_df=broad_df,
+        )
+        print(f"   [OK] Aligned Stock with Benchmarks ({bench_ticker}, {broad_ticker}) & Sector: {len(aligned_df)} rows")
+
 
         self.print_pipeline_stage("4. FUNDAMENTAL DATA ALIGNMENT (POINT-IN-TIME)")
         aligned_df = self.aligner.align_fundamentals(aligned_df, fundamentals)

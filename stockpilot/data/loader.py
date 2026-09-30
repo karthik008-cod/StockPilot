@@ -97,18 +97,27 @@ class DataLoader:
                 actions=True,
             )
         else:
-            # Fetch all records from the very first day of trading
             df = yf_ticker.history(
                 period="max",
                 auto_adjust=self.config.auto_adjust,
                 actions=True,
             )
+            if df.empty:
+                # Ancient companies (e.g. TATAPOWER) fail with period='max' due to pre-1950 incorporation date
+                logger.info("Retrying with start='1996-01-01' fallback for %s...", ticker)
+                df = yf_ticker.history(
+                    start="1996-01-01",
+                    end=end_date,
+                    auto_adjust=self.config.auto_adjust,
+                    actions=True,
+                )
             if end_date and not df.empty:
                 df = df[df.index <= pd.to_datetime(end_date)]
 
         if df.empty:
             logger.warning("No OHLCV data returned for %s", ticker)
             return pd.DataFrame()
+
 
         # Reset index to have 'Date' as a column and ensure timezone-naive UTC date
         df = df.reset_index()
@@ -173,20 +182,22 @@ class DataLoader:
     def load_benchmark(
         self,
         benchmark_ticker: str = "^NSEI",
-        start_date: str = "2019-01-01",
+        start_date: Optional[str] = None,
         end_date: Optional[str] = None,
+        period: Optional[str] = "max",
         force_reload: bool = False,
+        prefix: str = "Benchmark_",
     ) -> pd.DataFrame:
-        """Loads benchmark index data (e.g. NIFTY 50)."""
-        df = self.load_ohlcv(benchmark_ticker, start_date=start_date, end_date=end_date, force_reload=force_reload)
+        """Loads benchmark index data (e.g. NIFTY 50, NIFTY 500)."""
+        df = self.load_ohlcv(benchmark_ticker, start_date=start_date, end_date=end_date, period=period, force_reload=force_reload)
         if not df.empty:
             rename_map = {
-                "Open": "Benchmark_Open",
-                "High": "Benchmark_High",
-                "Low": "Benchmark_Low",
-                "Close": "Benchmark_Close",
-                "Adj Close": "Benchmark_Adj_Close",
-                "Volume": "Benchmark_Volume",
+                "Open": f"{prefix}Open",
+                "High": f"{prefix}High",
+                "Low": f"{prefix}Low",
+                "Close": f"{prefix}Close",
+                "Adj Close": f"{prefix}Adj_Close",
+                "Volume": f"{prefix}Volume",
             }
             df = df.rename(columns=rename_map)[["Date"] + list(rename_map.values())]
         return df
@@ -194,23 +205,25 @@ class DataLoader:
     def load_sector(
         self,
         sector_ticker: Optional[str],
-        start_date: str = "2019-01-01",
+        start_date: Optional[str] = None,
         end_date: Optional[str] = None,
+        period: Optional[str] = "max",
         force_reload: bool = False,
+        prefix: str = "Sector_",
     ) -> pd.DataFrame:
         """Loads sectoral index data (e.g. ^CNXIT, ^NSEBANK)."""
         if not sector_ticker:
             return pd.DataFrame()
 
-        df = self.load_ohlcv(sector_ticker, start_date=start_date, end_date=end_date, force_reload=force_reload)
+        df = self.load_ohlcv(sector_ticker, start_date=start_date, end_date=end_date, period=period, force_reload=force_reload)
         if not df.empty:
             rename_map = {
-                "Open": "Sector_Open",
-                "High": "Sector_High",
-                "Low": "Sector_Low",
-                "Close": "Sector_Close",
-                "Adj Close": "Sector_Adj_Close",
-                "Volume": "Sector_Volume",
+                "Open": f"{prefix}Open",
+                "High": f"{prefix}High",
+                "Low": f"{prefix}Low",
+                "Close": f"{prefix}Close",
+                "Adj Close": f"{prefix}Adj_Close",
+                "Volume": f"{prefix}Volume",
             }
             df = df.rename(columns=rename_map)[["Date"] + list(rename_map.values())]
         return df

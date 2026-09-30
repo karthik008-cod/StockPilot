@@ -23,15 +23,19 @@ class DataAligner:
         stock_df: pd.DataFrame,
         benchmark_df: Optional[pd.DataFrame] = None,
         sector_df: Optional[pd.DataFrame] = None,
+        broad_benchmark_df: Optional[pd.DataFrame] = None,
     ) -> pd.DataFrame:
-        """Aligns stock data with benchmark index and sector index on trading dates."""
+        """Aligns stock data with benchmark index (NIFTY 50), broad benchmark (NIFTY 500),
+
+        and sector index on trading dates.
+        """
         if stock_df.empty:
             return stock_df
 
         merged = stock_df.copy()
         merged["Date"] = pd.to_datetime(merged["Date"])
 
-        # Merge benchmark
+        # Merge primary benchmark (e.g. NIFTY 50)
         if benchmark_df is not None and not benchmark_df.empty:
             bench = benchmark_df.copy()
             bench["Date"] = pd.to_datetime(bench["Date"])
@@ -45,6 +49,21 @@ class DataAligner:
             bench_cols = [c for c in bench.columns if c != "Date"]
             merged = pd.merge(merged, bench, on="Date", how="left")
             merged[bench_cols] = merged[bench_cols].ffill(limit=3)
+
+        # Merge broad market benchmark (e.g. NIFTY 500)
+        if broad_benchmark_df is not None and not broad_benchmark_df.empty:
+            broad = broad_benchmark_df.copy()
+            broad["Date"] = pd.to_datetime(broad["Date"])
+            rename_broad = {}
+            for col in broad.columns:
+                if col != "Date" and not col.startswith("BroadBenchmark_"):
+                    rename_broad[col] = f"BroadBenchmark_{col}"
+            if rename_broad:
+                broad = broad.rename(columns=rename_broad)
+
+            broad_cols = [c for c in broad.columns if c != "Date"]
+            merged = pd.merge(merged, broad, on="Date", how="left")
+            merged[broad_cols] = merged[broad_cols].ffill(limit=3)
 
         # Merge sector
         if sector_df is not None and not sector_df.empty:
@@ -62,6 +81,7 @@ class DataAligner:
             merged[sec_cols] = merged[sec_cols].ffill(limit=3)
 
         return merged.sort_values("Date").reset_index(drop=True)
+
 
     def align_fundamentals(
         self,

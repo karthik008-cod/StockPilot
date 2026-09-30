@@ -36,12 +36,35 @@
         </header>
 
         <section class="toolbar-card">
+            <div class="toolbar-row" style="margin-bottom: 12px; gap: 14px; flex-wrap: wrap; align-items: flex-end;">
+                <div class="control-group">
+                    <label class="control-label">Index Universe</label>
+                    <div class="button-toggle-group" id="tierToggleGroup">
+                        <button class="toggle-btn tier-btn active" data-tier="NIFTY 100">NIFTY 100</button>
+                        <button class="toggle-btn tier-btn" data-tier="NIFTY 50">NIFTY 50</button>
+                        <button class="toggle-btn tier-btn" data-tier="NIFTY 200">NIFTY 200</button>
+                        <button class="toggle-btn tier-btn" data-tier="NIFTY 500">NIFTY 500</button>
+                        <button class="toggle-btn tier-btn" data-tier="ALL">All (500)</button>
+                    </div>
+                </div>
+
+                <div class="control-group" style="min-width: 200px;">
+                    <label for="sectorSelect" class="control-label">Sector Filter</label>
+                    <div class="select-wrapper">
+                        <select id="sectorSelect" class="custom-select">
+                            <option value="">All Sectors</option>
+                        </select>
+                        <span class="select-arrow">▼</span>
+                    </div>
+                </div>
+            </div>
+
             <div class="toolbar-row">
                 <div class="control-group stock-selector-group">
-                    <label for="stockSelect" class="control-label">Select NIFTY 50 Stock</label>
+                    <label for="stockSelect" class="control-label">Select Stock (<span id="stockCountBadge">100</span>)</label>
                     <div class="select-wrapper">
                         <select id="stockSelect" class="custom-select">
-                            <option value="" disabled selected>Loading NIFTY 50 stocks...</option>
+                            <option value="" disabled selected>Loading stocks...</option>
                         </select>
                         <span class="select-arrow">▼</span>
                     </div>
@@ -57,6 +80,7 @@
                         <button class="toggle-btn active" data-period="max">Max</button>
                     </div>
                 </div>
+
 
                 <div class="control-group search-group">
                     <label for="tableSearch" class="control-label">Filter Records</label>
@@ -342,15 +366,17 @@
                             <th data-sort="Change">Day Change (₹) <span class="sort-icon">↕</span></th>
                             <th data-sort="Change_Pct">Change (%) <span class="sort-icon">↕</span></th>
                             <th data-sort="Return_1d_Pct">1D Return (%) <span class="sort-icon">↕</span></th>
+                            <th>Market Flags</th>
                         </tr>
                     </thead>
                     <tbody id="recordsTableBody">
                         <tr>
-                            <td colspan="10" class="loading-state">
+                            <td colspan="11" class="loading-state">
                                 <div class="spinner"></div>
                                 <span>Loading records...</span>
                             </td>
                         </tr>
+
                     </tbody>
                 </table>
             </div>

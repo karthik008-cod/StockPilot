@@ -16,9 +16,15 @@ dist/
 # Environments
 .env
 
-# Data caches
+# Data caches & generated datasets
 data/raw/
+data/processed/
+data/test_processed/
+data/scalers/
+data/ingestion_report_*.json
+*.parquet
 *.pkl
+
 
 # IDEs
 .vscode/

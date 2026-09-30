@@ -121,10 +121,41 @@ class DataCleaner:
         else:
             cleaned[f"{prefix}Adj_Factor"] = 1.0
 
-        # 7. Non-destructive Outlier Tagging
+        # 7. Non-destructive Outlier & Circuit Tagging
         cleaned = self.tag_outliers(cleaned, ticker_name=ticker_name, close_col=close_col)
+        cleaned = self.tag_circuits(cleaned, ticker_name=ticker_name, prefix=prefix)
 
         return cleaned
+
+    def tag_circuits(self, df: pd.DataFrame, ticker_name: str = "TICKER", prefix: str = "") -> pd.DataFrame:
+        """Tags upper/lower circuit freeze days and zero-volume illiquidity days."""
+        df = df.copy()
+        high_col = f"{prefix}High"
+        low_col = f"{prefix}Low"
+        close_col = f"{prefix}Close"
+        open_col = f"{prefix}Open"
+        vol_col = f"{prefix}Volume"
+
+        if all(c in df.columns for c in [high_col, low_col, close_col, open_col]):
+            price_spread = (df[high_col] - df[low_col]).abs()
+            is_tight = (price_spread <= 0.05) | (price_spread / (df[close_col] + 1e-8) < 0.001)
+            # Day return vs prev close (circuit limits in NSE are 2%, 5%, 10%, 20%)
+            day_ret = df[close_col].pct_change().abs()
+            is_circuit = is_tight & (day_ret >= 0.019)
+            df["is_circuit_day"] = is_circuit.fillna(False)
+        else:
+            df["is_circuit_day"] = False
+
+        if vol_col in df.columns:
+            df["is_zero_volume"] = (df[vol_col] <= 0).fillna(False)
+        else:
+            df["is_zero_volume"] = False
+
+        circuit_count = df["is_circuit_day"].sum()
+        if circuit_count > 0:
+            logger.info("[%s] Tagged %d circuit freeze sessions", ticker_name, circuit_count)
+
+        return df
 
     def tag_outliers(self, df: pd.DataFrame, ticker_name: str = "TICKER", close_col: str = "Close") -> pd.DataFrame:
         """Tags extreme return moves without deleting data rows.
@@ -157,3 +188,4 @@ class DataCleaner:
                         ticker_name, outlier_count, outlier_dates[:5])
 
         return df
+

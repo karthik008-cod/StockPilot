@@ -5,6 +5,8 @@
 let stocksList = [];
 let currentTicker = "RELIANCE.NS";
 let currentPeriod = "max";
+let currentTier = "NIFTY 100";
+let currentSector = "";
 let allRecords = [];
 let filteredRecords = [];
 let currentPage = 1;
@@ -14,6 +16,8 @@ let sortAsc = false;
 
 // DOM Elements
 const stockSelect = document.getElementById("stockSelect");
+const sectorSelect = document.getElementById("sectorSelect");
+const stockCountBadge = document.getElementById("stockCountBadge");
 const tableSearch = document.getElementById("tableSearch");
 const refreshBtn = document.getElementById("refreshBtn");
 const exportCsvBtn = document.getElementById("exportCsvBtn");
@@ -46,23 +50,51 @@ const totalRecordCountEl = document.getElementById("totalRecordCount");
 
 async function init() {
     setupEventListeners();
+    await loadSectorsList();
     await loadStocksList();
     await loadStockData(currentTicker);
 }
 
+async function loadSectorsList() {
+    if (!sectorSelect) return;
+    try {
+        const res = await fetch("/api/sectors");
+        const data = await res.json();
+        const sectors = data.sectors || [];
+        sectorSelect.innerHTML = `<option value="">All Sectors (${sectors.length})</option>`;
+        sectors.forEach(sec => {
+            const opt = document.createElement("option");
+            opt.value = sec;
+            opt.textContent = sec;
+            sectorSelect.appendChild(opt);
+        });
+    } catch (err) {
+        console.warn("Could not load sectors list:", err);
+    }
+}
+
 async function loadStocksList() {
     try {
-        const res = await fetch("/api/stocks");
+        const params = new URLSearchParams();
+        if (currentTier && currentTier !== "ALL") params.append("tier", currentTier);
+        if (currentSector) params.append("sector", currentSector);
+
+        const res = await fetch(`/api/stocks?${params.toString()}`);
         const data = await res.json();
         stocksList = data.stocks || [];
 
+        if (stockCountBadge) stockCountBadge.textContent = stocksList.length;
+
         const sectors = {};
         stocksList.forEach(s => {
-            if (!sectors[s.sector]) sectors[s.sector] = [];
-            sectors[s.sector].push(s);
+            const secName = s.sector || "Other";
+            if (!sectors[secName]) sectors[secName] = [];
+            sectors[secName].push(s);
         });
 
         stockSelect.innerHTML = "";
+        let foundCurrent = false;
+
         Object.keys(sectors).sort().forEach(sec => {
             const optgroup = document.createElement("optgroup");
             optgroup.label = sec;
@@ -71,15 +103,26 @@ async function loadStocksList() {
                 const opt = document.createElement("option");
                 opt.value = stock.symbol;
                 opt.textContent = `${stock.name} (${stock.symbol})`;
-                if (stock.symbol === currentTicker) opt.selected = true;
+                if (stock.symbol === currentTicker) {
+                    opt.selected = true;
+                    foundCurrent = true;
+                }
                 optgroup.appendChild(opt);
             });
             stockSelect.appendChild(optgroup);
         });
+
+        // If currently selected stock is not in this filtered tier, select the first available stock
+        if (!foundCurrent && stocksList.length > 0) {
+            currentTicker = stocksList[0].symbol;
+            stockSelect.value = currentTicker;
+            await loadStockData(currentTicker);
+        }
     } catch (err) {
         console.error("Failed to load stocks list:", err);
     }
 }
+
 
 function getStartDateForPeriod(period) {
     const now = new Date();
@@ -286,7 +329,7 @@ function renderTable() {
     if (filteredRecords.length === 0) {
         recordsTableBody.innerHTML = `
             <tr>
-                <td colspan="10" class="loading-state">
+                <td colspan="11" class="loading-state">
                     No matching records found.
                 </td>
             </tr>
@@ -310,6 +353,13 @@ function renderTable() {
         const signChange = r.Change >= 0 ? "+" : "";
         const signReturn = r.Return_1d_Pct >= 0 ? "+" : "";
 
+        let flagHtml = `<span style="color:#64748B; font-size:11px;">Normal</span>`;
+        if (r.is_circuit) {
+            flagHtml = `<span class="badge-circuit" style="background: rgba(239, 68, 68, 0.15); color: #EF4444; border: 1px solid rgba(239, 68, 68, 0.3); padding: 2px 7px; border-radius: 4px; font-size: 11px; font-weight: 600;">🔒 Circuit</span>`;
+        } else if (r.is_outlier) {
+            flagHtml = `<span class="badge-outlier" style="background: rgba(245, 158, 11, 0.15); color: #F59E0B; border: 1px solid rgba(245, 158, 11, 0.3); padding: 2px 7px; border-radius: 4px; font-size: 11px; font-weight: 600;">⚡ Outlier</span>`;
+        }
+
         return `
             <tr>
                 <td class="date-col">${r.Date}</td>
@@ -322,6 +372,7 @@ function renderTable() {
                 <td class="${changeClass}">${signChange}₹${formatNumber(r.Change)}</td>
                 <td class="${changeClass}">${signChange}${r.Change_Pct.toFixed(2)}%</td>
                 <td class="${changeClass}">${signReturn}${r.Return_1d_Pct.toFixed(2)}%</td>
+                <td>${flagHtml}</td>
             </tr>
         `;
     }).join("");
@@ -444,14 +495,31 @@ function setupEventListeners() {
         loadStockData(currentTicker);
     });
 
-    document.querySelectorAll(".toggle-btn").forEach(btn => {
+    document.querySelectorAll("[data-period]").forEach(btn => {
         btn.addEventListener("click", () => {
-            document.querySelectorAll(".toggle-btn").forEach(b => b.classList.remove("active"));
+            document.querySelectorAll("[data-period]").forEach(b => b.classList.remove("active"));
             btn.classList.add("active");
             currentPeriod = btn.dataset.period;
             loadStockData(currentTicker);
         });
     });
+
+    document.querySelectorAll(".tier-btn").forEach(btn => {
+        btn.addEventListener("click", async () => {
+            document.querySelectorAll(".tier-btn").forEach(b => b.classList.remove("active"));
+            btn.classList.add("active");
+            currentTier = btn.dataset.tier;
+            await loadStocksList();
+        });
+    });
+
+    if (sectorSelect) {
+        sectorSelect.addEventListener("change", async e => {
+            currentSector = e.target.value;
+            await loadStocksList();
+        });
+    }
+
 
     tableSearch.addEventListener("input", e => {
         const query = e.target.value.trim().toLowerCase();
@@ -533,7 +601,7 @@ function formatVolume(vol) {
 function exportToCsv() {
     if (!filteredRecords || filteredRecords.length === 0) return;
 
-    const headers = ["Date", "Open", "High", "Low", "Close", "Adj_Close", "Volume", "Change", "Change_Pct", "Return_1d_Pct"];
+    const headers = ["Date", "Open", "High", "Low", "Close", "Adj_Close", "Volume", "Change", "Change_Pct", "Return_1d_Pct", "Is_Circuit", "Is_Outlier"];
     const rows = [headers.join(",")];
 
     filteredRecords.forEach(r => {
@@ -547,9 +615,12 @@ function exportToCsv() {
             r.Volume,
             r.Change,
             r.Change_Pct,
-            r.Return_1d_Pct
+            r.Return_1d_Pct,
+            r.is_circuit ? "1" : "0",
+            r.is_outlier ? "1" : "0"
         ].join(","));
     });
+
 
     const csvContent = "data:text/csv;charset=utf-8," + rows.join("\n");
     const encodedUri = encodeURI(csvContent);
