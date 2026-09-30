@@ -495,6 +495,7 @@ async function loadStockData(ticker) {
         renderTable();
         renderChart(allRecords);
         fetchTradeSetup(ticker);
+        fetchStockStrategyCheck(ticker);
 
     } catch (err) {
         console.error("Error loading stock data:", err);
@@ -1424,6 +1425,382 @@ function setupTradeStrategyListeners() {
             }, 400);
         });
     }
+
+    // ─── Initialize Strategy Recommendation Scanner ──────────────────
+    initStrategyScanner();
+}
+
+// ==========================================================================
+// Strategy Scanner & Multi-Timeframe Momentum Monitor Client Logic
+// ==========================================================================
+
+let activeScannerStrategyId = "ALL";
+let registeredStrategies = [];
+
+// DOM Elements for Strategy Scanner
+const runScannerBtn = document.getElementById("runScannerBtn");
+const scanBtnText = document.getElementById("scanBtnText");
+const strategyTabsBar = document.getElementById("strategyTabsBar");
+const currentStratName = document.getElementById("currentStratName");
+const currentStratDesc = document.getElementById("currentStratDesc");
+const currentStratUniverse = document.getElementById("currentStratUniverse");
+const scannerEmptyState = document.getElementById("scannerEmptyState");
+const candidatesGrid = document.getElementById("candidatesGrid");
+
+// DOM Elements for MTF Momentum Monitor
+const mtfSignalVerdict = document.getElementById("mtfSignalVerdict");
+const dailyRsiVal = document.getElementById("dailyRsiVal");
+const dailyRegime = document.getElementById("dailyRegime");
+const dailyGaugeFill = document.getElementById("dailyGaugeFill");
+const dailyStatusNote = document.getElementById("dailyStatusNote");
+
+const weeklyRsiVal = document.getElementById("weeklyRsiVal");
+const weeklyRegime = document.getElementById("weeklyRegime");
+const weeklyGaugeFill = document.getElementById("weeklyGaugeFill");
+const weeklyStatusNote = document.getElementById("weeklyStatusNote");
+
+const monthlyRsiVal = document.getElementById("monthlyRsiVal");
+const monthlyRegime = document.getElementById("monthlyRegime");
+const monthlyGaugeFill = document.getElementById("monthlyGaugeFill");
+const monthlyStatusNote = document.getElementById("monthlyStatusNote");
+
+const strategyCheckDetails = document.getElementById("strategyCheckDetails");
+
+async function initStrategyScanner() {
+    try {
+        const res = await fetch("/api/strategies");
+        if (res.ok) {
+            const data = await res.json();
+            registeredStrategies = data.strategies || [];
+        }
+    } catch (e) {
+        console.warn("Could not fetch strategies metadata:", e);
+    }
+
+    // Tab buttons
+    if (strategyTabsBar) {
+        strategyTabsBar.querySelectorAll(".strat-tab-btn").forEach(btn => {
+            btn.addEventListener("click", () => {
+                strategyTabsBar.querySelectorAll(".strat-tab-btn").forEach(b => b.classList.remove("active"));
+                btn.classList.add("active");
+                activeScannerStrategyId = btn.dataset.strategy;
+                updateScannerInfoStrip(activeScannerStrategyId);
+            });
+        });
+    }
+
+    // Run Scanner Button
+    if (runScannerBtn) {
+        runScannerBtn.addEventListener("click", runMarketScanner);
+    }
+}
+
+function updateScannerInfoStrip(stratId) {
+    if (stratId === "ALL") {
+        if (currentStratName) currentStratName.textContent = "All 4 Setups";
+        if (currentStratDesc) currentStratDesc.textContent = "Scanning NIFTY 500, NIFTY 200, and NIFTY 50 universes for all four multi-timeframe Wilder RSI setups.";
+        if (currentStratUniverse) currentStratUniverse.textContent = "Universe: NIFTY 500 / 200 / 50";
+        return;
+    }
+
+    const strat = registeredStrategies.find(s => s.strategy_id === stratId);
+    if (strat) {
+        if (currentStratName) currentStratName.textContent = strat.name;
+        if (currentStratDesc) currentStratDesc.textContent = strat.purpose || strat.description;
+        if (currentStratUniverse) currentStratUniverse.textContent = `Universe: ${strat.universe}`;
+    }
+}
+
+async function runMarketScanner() {
+    if (!runScannerBtn) return;
+    runScannerBtn.disabled = true;
+    if (scanBtnText) scanBtnText.textContent = "Scanning Universe...";
+
+    if (candidatesGrid) {
+        candidatesGrid.style.display = "grid";
+        candidatesGrid.innerHTML = `
+            <div style="grid-column: 1 / -1; text-align: center; padding: 40px; color: var(--text-secondary);">
+                <div class="spinner" style="margin: 0 auto 12px auto;"></div>
+                <div style="font-weight: 700; color: #F1F5F9;">Running Multi-Timeframe Wilder RSI(14) Scanner...</div>
+                <div style="font-size: 0.82rem; color: var(--text-muted); margin-top: 4px;">Evaluating 500+ Indian equities with zero look-ahead bias</div>
+            </div>
+        `;
+    }
+    if (scannerEmptyState) scannerEmptyState.style.display = "none";
+
+    try {
+        const params = new URLSearchParams({ strategy_id: activeScannerStrategyId });
+        const res = await fetch(`/api/scan?${params.toString()}`);
+        if (!res.ok) throw new Error(`Scan request failed with HTTP ${res.status}`);
+        const data = await res.json();
+
+        renderScannerCandidates(data);
+    } catch (err) {
+        console.error("Scanner failed:", err);
+        if (candidatesGrid) {
+            candidatesGrid.innerHTML = `
+                <div style="grid-column: 1 / -1; text-align: center; padding: 24px; color: #FB7185; background: rgba(251, 113, 133, 0.1); border-radius: var(--radius-md); border: 1px solid rgba(251, 113, 133, 0.3);">
+                    Failed to run scanner: ${err.message}. Please try again.
+                </div>
+            `;
+        }
+    } finally {
+        runScannerBtn.disabled = false;
+        if (scanBtnText) scanBtnText.textContent = "Scan Setups";
+    }
+}
+
+function renderScannerCandidates(data) {
+    if (!candidatesGrid) return;
+
+    let candidates = [];
+    if (data.strategy_id === "ALL") {
+        const byStrat = data.results_by_strategy || {};
+        for (const [sId, sRes] of Object.entries(byStrat)) {
+            if (sRes.candidates) {
+                candidates.push(...sRes.candidates);
+            }
+        }
+    } else {
+        candidates = data.candidates || [];
+    }
+
+    if (candidates.length === 0) {
+        candidatesGrid.innerHTML = `
+            <div style="grid-column: 1 / -1; text-align: center; padding: 40px; background: rgba(0,0,0,0.2); border-radius: var(--radius-md); border: 1px dashed rgba(255,255,255,0.12);">
+                <div style="font-size: 2rem; margin-bottom: 8px;">🛡️</div>
+                <div style="font-size: 1.1rem; font-weight: 700; color: #FCD34D;">No Stocks Currently Satisfy Entry Criteria</div>
+                <div style="font-size: 0.86rem; color: var(--text-muted); max-width: 500px; margin: 8px auto 0 auto; line-height: 1.5;">
+                    <strong>"No trades is much better than loss trades."</strong> None of the scanned stocks currently meet the strict multi-timeframe conditions. Check back after market hours.
+                </div>
+            </div>
+        `;
+        return;
+    }
+
+    candidatesGrid.innerHTML = candidates.map(c => {
+        const ind = c.indicators || {};
+        const dailyRsi = ind.daily_rsi_14 !== undefined && ind.daily_rsi_14 !== null ? Number(ind.daily_rsi_14).toFixed(1) : "--";
+        const weeklyRsi = ind.weekly_rsi_14 !== undefined && ind.weekly_rsi_14 !== null ? Number(ind.weekly_rsi_14).toFixed(1) : "--";
+        const monthlyRsi = ind.monthly_rsi_14 !== undefined && ind.monthly_rsi_14 !== null ? Number(ind.monthly_rsi_14).toFixed(1) : "--";
+        const prevWeeklyRsi = ind.prev_weekly_rsi_14 !== undefined && ind.prev_weekly_rsi_14 !== null ? Number(ind.prev_weekly_rsi_14).toFixed(1) : null;
+
+        const conditionsHtml = (c.conditions || []).map(cond => `
+            <div class="evidence-row">
+                <span class="evidence-check">${cond.passed ? "✓" : "✗"}</span>
+                <span>${cond.condition_desc || cond.condition} (Actual: <strong>${cond.actual !== undefined ? cond.actual : cond.actual_value}</strong>)</span>
+            </div>
+        `).join("");
+
+        const stratDisplay = c.strategy_name || c.strategy_id;
+
+        return `
+            <div class="candidate-card" data-ticker="${c.symbol}">
+                <div class="candidate-card-header">
+                    <div>
+                        <div class="candidate-ticker">${c.symbol.replace(".NS", "")}</div>
+                        <div class="candidate-company" title="${c.company_name}">${c.company_name}</div>
+                    </div>
+                    <div class="candidate-badge-col">
+                        <span class="candidate-strat-badge">${c.universe}</span>
+                        <span class="candidate-sector-pill">${c.sector}</span>
+                    </div>
+                </div>
+
+                <div style="font-size: 0.74rem; font-weight: 700; color: #34D399; display: flex; align-items: center; gap: 4px;">
+                    <span>⚡</span> <span>${stratDisplay}</span>
+                </div>
+
+                <div class="candidate-mtf-pills">
+                    <div class="mtf-pill">
+                        <span class="mtf-pill-lbl">Daily RSI</span>
+                        <span class="mtf-pill-val highlight-amber">${dailyRsi}</span>
+                    </div>
+                    <div class="mtf-pill">
+                        <span class="mtf-pill-lbl">Weekly RSI</span>
+                        <span class="mtf-pill-val highlight-green">${weeklyRsi}${prevWeeklyRsi ? `<span style="font-size: 0.7em; color: #94A3B8;"> (was ${prevWeeklyRsi})</span>` : ""}</span>
+                    </div>
+                    <div class="mtf-pill">
+                        <span class="mtf-pill-lbl">Monthly RSI</span>
+                        <span class="mtf-pill-val highlight-blue">${monthlyRsi}</span>
+                    </div>
+                </div>
+
+                <div class="candidate-evidence-list">
+                    ${conditionsHtml}
+                </div>
+
+                <div class="candidate-card-footer">
+                    <button class="btn-inspect-candidate" onclick="selectCandidateStock('${c.symbol}')">
+                        Inspect in Workspace & Size Position →
+                    </button>
+                </div>
+            </div>
+        `;
+    }).join("");
+}
+
+function selectCandidateStock(ticker) {
+    currentTicker = ticker;
+    
+    // Unlock and select in stockSelect
+    if (stockSelect) {
+        stockSelect.disabled = false;
+        let optExists = false;
+        for (let i = 0; i < stockSelect.options.length; i++) {
+            if (stockSelect.options[i].value === ticker) {
+                stockSelect.selectedIndex = i;
+                optExists = true;
+                break;
+            }
+        }
+        if (!optExists) {
+            const opt = document.createElement("option");
+            opt.value = ticker;
+            opt.textContent = `${ticker.replace(".NS", "")} (Scanner Pick)`;
+            opt.selected = true;
+            stockSelect.appendChild(opt);
+        }
+    }
+
+    // Set stepper to Step 4
+    setStep(4, ticker.replace(".NS", ""));
+    if (step3SelectedVal) step3SelectedVal.textContent = ticker.replace(".NS", "");
+
+    // Hide guided flow, show workspace
+    if (guidedFlowState) guidedFlowState.style.display = "none";
+    if (stockWorkspace) {
+        stockWorkspace.style.display = "flex";
+        stockWorkspace.scrollIntoView({ behavior: "smooth" });
+    }
+
+    loadStockData(ticker);
+}
+
+// Expose to window for inline onclick handlers
+window.selectCandidateStock = selectCandidateStock;
+
+// Check stock against all 4 strategies and render MTF Gauges & Verdict
+async function fetchStockStrategyCheck(ticker) {
+    if (!ticker) return;
+
+    try {
+        const res = await fetch(`/api/stock-strategy-check?ticker=${encodeURIComponent(ticker)}`);
+        if (!res.ok) return;
+        const data = await res.json();
+
+        const ind = data.indicators || {};
+        const dRsi = ind.daily_rsi_14 !== undefined && ind.daily_rsi_14 !== null ? Number(ind.daily_rsi_14) : null;
+        const wRsi = ind.weekly_rsi_14 !== undefined && ind.weekly_rsi_14 !== null ? Number(ind.weekly_rsi_14) : null;
+        const mRsi = ind.monthly_rsi_14 !== undefined && ind.monthly_rsi_14 !== null ? Number(ind.monthly_rsi_14) : null;
+
+        // Daily Gauge
+        if (dailyRsiVal) dailyRsiVal.textContent = dRsi !== null ? dRsi.toFixed(1) : "--";
+        if (dailyGaugeFill && dRsi !== null) {
+            dailyGaugeFill.style.width = `${Math.min(Math.max(dRsi, 0), 100)}%`;
+        }
+        if (dailyRegime && dRsi !== null) {
+            if (dRsi >= 58 && dRsi <= 63) {
+                dailyRegime.textContent = "Momentum (58-63)";
+                dailyRegime.className = "gauge-regime regime-bullish";
+            } else if (dRsi >= 39 && dRsi <= 45) {
+                dailyRegime.textContent = "Pullback (39-45)";
+                dailyRegime.className = "gauge-regime regime-pullback";
+            } else if (dRsi > 63) {
+                dailyRegime.textContent = "Strong Bullish (>63)";
+                dailyRegime.className = "gauge-regime regime-bullish";
+            } else if (dRsi < 39) {
+                dailyRegime.textContent = "Deep Oversold (<39)";
+                dailyRegime.className = "gauge-regime";
+            } else {
+                dailyRegime.textContent = "Neutral Zone";
+                dailyRegime.className = "gauge-regime";
+            }
+        }
+
+        // Weekly Gauge
+        if (weeklyRsiVal) weeklyRsiVal.textContent = wRsi !== null ? wRsi.toFixed(1) : "--";
+        if (weeklyGaugeFill && wRsi !== null) {
+            weeklyGaugeFill.style.width = `${Math.min(Math.max(wRsi, 0), 100)}%`;
+        }
+        if (weeklyRegime && wRsi !== null) {
+            if (wRsi > 60) {
+                weeklyRegime.textContent = "Bullish Regime (>60)";
+                weeklyRegime.className = "gauge-regime regime-bullish";
+            } else {
+                weeklyRegime.textContent = "Sub-60 Regime";
+                weeklyRegime.className = "gauge-regime";
+            }
+        }
+
+        // Monthly Gauge
+        if (monthlyRsiVal) monthlyRsiVal.textContent = mRsi !== null ? mRsi.toFixed(1) : "--";
+        if (monthlyGaugeFill && mRsi !== null) {
+            monthlyGaugeFill.style.width = `${Math.min(Math.max(mRsi, 0), 100)}%`;
+        }
+        if (monthlyRegime && mRsi !== null) {
+            if (mRsi > 60) {
+                monthlyRegime.textContent = "Strong HTF (>60)";
+                monthlyRegime.className = "gauge-regime regime-bullish";
+            } else if (mRsi >= 40 && mRsi <= 43) {
+                monthlyRegime.textContent = "Zone (40-43)";
+                monthlyRegime.className = "gauge-regime regime-pullback";
+            } else {
+                monthlyRegime.textContent = "Neutral Trend";
+                monthlyRegime.className = "gauge-regime";
+            }
+        }
+
+        // Verdict Badge
+        if (mtfSignalVerdict) {
+            if (data.has_setup) {
+                mtfSignalVerdict.className = "signal-verdict verdict-match";
+                const matchNames = (data.matches || []).map(m => m.name).join(", ");
+                mtfSignalVerdict.innerHTML = `<span>⚡</span> <span>VERIFIED SETUP: ${matchNames}</span>`;
+            } else {
+                mtfSignalVerdict.className = "signal-verdict verdict-none";
+                mtfSignalVerdict.innerHTML = `<span>🛡️</span> <span>NO ACTIVE STRATEGY SETUP (Discipline: No trades > Loss trades)</span>`;
+            }
+        }
+
+        // Checklist of all 4 strategies
+        if (strategyCheckDetails && data.evaluations) {
+            const evals = data.evaluations;
+            const stratCardsHtml = Object.entries(evals).map(([sId, evalObj]) => {
+                const passed = evalObj.passed;
+                const conditions = evalObj.conditions || [];
+                const condHtml = conditions.map(c => `
+                    <div style="font-size: 0.76rem; color: ${c.passed ? '#34D399' : '#94A3B8'}; display: flex; align-items: center; gap: 6px;">
+                        <span>${c.passed ? '✓' : '✗'}</span>
+                        <span>${c.condition_desc} (Actual: <strong>${c.actual !== undefined ? c.actual : c.actual_value}</strong>)</span>
+                    </div>
+                `).join("");
+
+                return `
+                    <div class="strat-check-row ${passed ? 'is-matched' : ''}">
+                        <div class="strat-check-meta">
+                            <div class="strat-check-title">${evalObj.strategy_name} (${evalObj.universe})</div>
+                            <div class="strat-check-purpose">${evalObj.passed ? '✓ Entry criteria satisfied! Proceed to position sizing.' : 'Does not satisfy entry conditions.'}</div>
+                            <div style="margin-top: 6px; display: flex; flex-direction: column; gap: 3px;">
+                                ${condHtml}
+                            </div>
+                        </div>
+                        <div>
+                            <span class="strat-status-pill ${passed ? 'pass' : 'fail'}">
+                                ${passed ? '✓ PASSED' : 'NOT MET'}
+                            </span>
+                        </div>
+                    </div>
+                `;
+            }).join("");
+
+            strategyCheckDetails.innerHTML = stratCardsHtml;
+        }
+
+    } catch (err) {
+        console.warn("Could not check stock strategy status:", err);
+    }
 }
 
 document.addEventListener("DOMContentLoaded", init);
+

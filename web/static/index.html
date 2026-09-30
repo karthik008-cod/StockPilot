@@ -220,6 +220,73 @@
             </div>
         </section>
 
+        <!-- Strategy Recommendation Scanner Hub -->
+        <section class="strategy-scanner-section" id="strategyScannerSection">
+            <div class="scanner-header-wrap">
+                <div class="scanner-title-area">
+                    <div class="scanner-badge-row">
+                        <span class="scanner-pill">VERIFIED MARKET SIGNALS</span>
+                        <span class="scanner-rule-tag">🛡️ Strict Setups Only</span>
+                    </div>
+                    <h2 class="scanner-title">Technical Strategy Scanner</h2>
+                    <p class="scanner-subtitle">
+                        StockPilot recommends stocks <strong>strictly</strong> when one of the 4 defined multi-timeframe strategies satisfies its entry conditions.
+                        <em>"No trades is much, much better than loss trades."</em>
+                    </p>
+                </div>
+                <div class="scanner-action-area">
+                    <button id="runScannerBtn" class="btn btn-scan">
+                        <span class="scan-btn-icon">⚡</span>
+                        <span id="scanBtnText">Scan Setups</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Strategy Filter Tabs -->
+            <div class="strategy-tabs-bar" id="strategyTabsBar">
+                <button class="strat-tab-btn active" data-strategy="ALL">
+                    <span class="tab-title">All 4 Setups</span>
+                    <span class="tab-sub">Comprehensive Scan</span>
+                </button>
+                <button class="strat-tab-btn" data-strategy="HTF_BULLISH_DEEP_DAILY_PULLBACK">
+                    <span class="tab-title">Strategy 1</span>
+                    <span class="tab-sub">HTF Bullish + Deep Daily Pullback (NIFTY 500)</span>
+                </button>
+                <button class="strat-tab-btn" data-strategy="HTF_BULLISH_DAILY_MOMENTUM_ZONE">
+                    <span class="tab-title">Strategy 2</span>
+                    <span class="tab-sub">HTF Bullish + Daily Momentum (NIFTY 500)</span>
+                </button>
+                <button class="strat-tab-btn" data-strategy="WEEKLY_RSI_CROSS_ABOVE_60">
+                    <span class="tab-title">Strategy 3</span>
+                    <span class="tab-sub">Weekly RSI Cross > 60 (NIFTY 50)</span>
+                </button>
+                <button class="strat-tab-btn" data-strategy="MONTHLY_RSI_40_43_ZONE">
+                    <span class="tab-title">Strategy 4</span>
+                    <span class="tab-sub">Monthly RSI 40–43 Zone (NIFTY 200)</span>
+                </button>
+            </div>
+
+            <!-- Strategy Active Details / Conditions Summary -->
+            <div class="strategy-info-strip" id="strategyInfoStrip">
+                <div class="info-strip-icon">ℹ️</div>
+                <div class="info-strip-content">
+                    <span class="info-strip-label" id="currentStratName">All 4 Setups</span>
+                    <span class="info-strip-desc" id="currentStratDesc">Scanning NIFTY 500, NIFTY 200, and NIFTY 50 universes for all four multi-timeframe Wilder RSI setups.</span>
+                </div>
+                <div class="info-strip-universe" id="currentStratUniverse">Universe: NIFTY 500/200/50</div>
+            </div>
+
+            <!-- Scanner Results Container -->
+            <div class="scanner-results-container" id="scannerResultsContainer">
+                <div class="scanner-empty-state" id="scannerEmptyState">
+                    <div class="empty-icon">🔍</div>
+                    <div class="empty-title">Ready to Scan Indian Equities</div>
+                    <div class="empty-desc">Click "Scan Setups" above to evaluate 500+ stocks against the multi-timeframe Wilder RSI entry criteria.</div>
+                </div>
+                <div class="candidates-grid" id="candidatesGrid" style="display: none;"></div>
+            </div>
+        </section>
+
         <!-- Guided Flow State (Displayed when no stock is selected yet) -->
         <section class="guided-flow-card" id="guidedFlowState">
             <div class="guided-flow-icon">🎯</div>
@@ -469,6 +536,99 @@
                         </div>
                     </div>
                 </div>
+            </div>
+        </section>
+
+        <!-- Multi-Timeframe Momentum Monitor & Strategy Signal Verification -->
+        <section class="mtf-verification-card" id="mtfVerificationCard">
+            <div class="mtf-card-header">
+                <div>
+                    <div class="mtf-badge-row">
+                        <span class="mtf-badge-tag">MULTI-TIMEFRAME ANALYSIS</span>
+                        <span class="mtf-wilder-tag">Wilder-Smoothed RSI(14)</span>
+                    </div>
+                    <h3 class="mtf-card-title">Technical Strategy Signal Verification</h3>
+                    <p class="mtf-card-sub">
+                        Strict multi-timeframe condition verification. Stocks are recommended <strong>only</strong> if they satisfy one of the 4 defined strategy setups.
+                    </p>
+                </div>
+                <div id="mtfSignalVerdict" class="signal-verdict verdict-none">
+                    <span class="verdict-icon">🛡️</span>
+                    <span class="verdict-text">Checking Setups...</span>
+                </div>
+            </div>
+
+            <!-- MTF 3-Gauge Grid -->
+            <div class="mtf-gauges-grid">
+                <!-- 1. Daily RSI -->
+                <div class="mtf-gauge-box" id="gaugeBoxDaily">
+                    <div class="gauge-label-row">
+                        <span class="gauge-label">Daily RSI(14)</span>
+                        <span class="gauge-regime" id="dailyRegime">--</span>
+                    </div>
+                    <div class="gauge-val" id="dailyRsiVal">--</div>
+                    <div class="gauge-meter-track">
+                        <div class="gauge-meter-fill" id="dailyGaugeFill" style="width: 50%;"></div>
+                        <div class="gauge-zone-marker zone-pullback" title="Pullback Zone (39-45)"></div>
+                        <div class="gauge-zone-marker zone-momentum" title="Momentum Zone (58-63)"></div>
+                    </div>
+                    <div class="gauge-scale">
+                        <span>0</span>
+                        <span class="scale-highlight">39-45</span>
+                        <span>50</span>
+                        <span class="scale-highlight">58-63</span>
+                        <span>100</span>
+                    </div>
+                    <div class="gauge-status-note" id="dailyStatusNote">Daily momentum state</div>
+                </div>
+
+                <!-- 2. Weekly RSI -->
+                <div class="mtf-gauge-box" id="gaugeBoxWeekly">
+                    <div class="gauge-label-row">
+                        <span class="gauge-label">Weekly RSI(14)</span>
+                        <span class="gauge-regime" id="weeklyRegime">--</span>
+                    </div>
+                    <div class="gauge-val" id="weeklyRsiVal">--</div>
+                    <div class="gauge-meter-track">
+                        <div class="gauge-meter-fill" id="weeklyGaugeFill" style="width: 50%;"></div>
+                        <div class="gauge-line-marker marker-60" title="Bullish Threshold (> 60)"></div>
+                    </div>
+                    <div class="gauge-scale">
+                        <span>0</span>
+                        <span>30</span>
+                        <span>50</span>
+                        <span class="scale-highlight">> 60</span>
+                        <span>100</span>
+                    </div>
+                    <div class="gauge-status-note" id="weeklyStatusNote">Intermediate trend momentum</div>
+                </div>
+
+                <!-- 3. Monthly RSI -->
+                <div class="mtf-gauge-box" id="gaugeBoxMonthly">
+                    <div class="gauge-label-row">
+                        <span class="gauge-label">Monthly RSI(14)</span>
+                        <span class="gauge-regime" id="monthlyRegime">--</span>
+                    </div>
+                    <div class="gauge-val" id="monthlyRsiVal">--</div>
+                    <div class="gauge-meter-track">
+                        <div class="gauge-meter-fill" id="monthlyGaugeFill" style="width: 50%;"></div>
+                        <div class="gauge-zone-marker zone-consolidation" title="Zone 40-43"></div>
+                        <div class="gauge-line-marker marker-60" title="Bullish Threshold (> 60)"></div>
+                    </div>
+                    <div class="gauge-scale">
+                        <span>0</span>
+                        <span class="scale-highlight">40-43</span>
+                        <span>50</span>
+                        <span class="scale-highlight">> 60</span>
+                        <span>100</span>
+                    </div>
+                    <div class="gauge-status-note" id="monthlyStatusNote">Long-term secular momentum</div>
+                </div>
+            </div>
+
+            <!-- Strategy Verification Checklist for this Stock -->
+            <div class="strategy-check-details" id="strategyCheckDetails">
+                <!-- Dynamically populated via JavaScript -->
             </div>
         </section>
 

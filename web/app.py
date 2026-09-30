@@ -16,6 +16,12 @@ from stockpilot.data.loader import DataLoader
 from stockpilot.data.cleaner import DataCleaner
 from stockpilot.universe import universe, BENCHMARK_INDICES
 from stockpilot.trade.planner import TradePlanner
+from stockpilot.strategy import (
+    StrategyScannerEngine,
+    STRATEGY_REGISTRY,
+    list_strategies,
+    get_strategy,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -307,6 +313,84 @@ def get_trade_setup(
         return setup
     except Exception as e:
         logger.error("Error generating trade setup for %s: %s", ticker, e, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+scanner_engine = StrategyScannerEngine(loader=loader, cleaner=cleaner)
+
+
+@app.get("/api/strategies")
+def get_strategies():
+    """Returns declarative metadata and conditions for all 4 defined user strategies."""
+    return {
+        "count": len(STRATEGY_REGISTRY),
+        "strategies": list_strategies(),
+    }
+
+
+@app.get("/api/scan")
+def run_strategy_scan(
+    strategy_id: str = Query("HTF_BULLISH_DEEP_DAILY_PULLBACK", description="Strategy ID or 'ALL'"),
+    universe_override: Optional[str] = Query(None, description="Optional universe tier override (NIFTY 50, NIFTY 100, NIFTY 200, NIFTY 500)"),
+    as_of_date: Optional[str] = Query(None, description="Point-in-time evaluation cutoff YYYY-MM-DD"),
+    limit: Optional[int] = Query(None, description="Max candidates to return"),
+):
+    """Scans the designated universe against the selected strategy and returns matching candidates with audit evidence."""
+    try:
+        if strategy_id.upper() == "ALL":
+            all_results = scanner_engine.scan_all_strategies(as_of_date=as_of_date)
+            formatted = {}
+            total = 0
+            for sid, cands in all_results.items():
+                if limit:
+                    cands = cands[:limit]
+                formatted[sid] = [c.to_dict() for c in cands]
+                total += len(cands)
+            return {
+                "strategy_id": "ALL",
+                "total_candidates": total,
+                "results_by_strategy": formatted,
+            }
+
+        strat = get_strategy(strategy_id)
+        if not strat:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Strategy '{strategy_id}' not found. Available: {list(STRATEGY_REGISTRY.keys())}",
+            )
+
+        candidates = scanner_engine.scan_universe(
+            strat,
+            universe_override=universe_override,
+            as_of_date=as_of_date,
+        )
+        if limit:
+            candidates = candidates[:limit]
+
+        return {
+            "strategy_id": strat.strategy_id,
+            "strategy_name": strat.name,
+            "universe": universe_override or strat.universe,
+            "purpose": strat.purpose,
+            "count": len(candidates),
+            "candidates": [c.to_dict() for c in candidates],
+        }
+    except Exception as e:
+        logger.error("Scan error for strategy %s: %s", strategy_id, e, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/stock-strategy-check")
+def check_stock_strategies(
+    ticker: str = Query("RELIANCE.NS", description="Stock ticker symbol"),
+    as_of_date: Optional[str] = Query(None, description="Point-in-time evaluation cutoff YYYY-MM-DD"),
+):
+    """Checks whether the selected stock satisfies any of the 4 defined user strategies."""
+    try:
+        res = scanner_engine.check_stock_all_strategies(ticker, as_of_date=as_of_date)
+        return res
+    except Exception as e:
+        logger.error("Strategy check error for %s: %s", ticker, e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
