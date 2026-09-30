@@ -1,12 +1,18 @@
 /**
- * StockPilot NIFTY 50 Market Data Explorer Client Logic
+ * StockPilot Market Explorer & Trade Planner Client Logic
+ * Follows a progressive disciplined flow:
+ * Step 1: Select Index Universe
+ * Step 2: Select Sector / Industry
+ * Step 3: Select Stock
+ * Step 4: Trade Strategy, Horizon & Position Sizing Planner
  */
 
 let stocksList = [];
-let currentTicker = "RELIANCE.NS";
+let currentTicker = null;
 let currentPeriod = "max";
-let currentTier = "NIFTY 100";
-let currentSector = "";
+let currentTier = null;
+let currentSector = null;
+let currentSectorDetails = [];
 let allRecords = [];
 let filteredRecords = [];
 let currentPage = 1;
@@ -14,7 +20,44 @@ let pageSize = 50;
 let sortCol = "Date";
 let sortAsc = false;
 
-// DOM Elements
+// Stepper & Workflow DOM Elements
+const workflowStatusBadge = document.getElementById("workflowStatusBadge");
+const step1Card = document.getElementById("step1Card");
+const step2Card = document.getElementById("step2Card");
+const step3Card = document.getElementById("step3Card");
+const step4Card = document.getElementById("step4Card");
+const step1SelectedVal = document.getElementById("step1SelectedVal");
+const step2SelectedVal = document.getElementById("step2SelectedVal");
+const step3SelectedVal = document.getElementById("step3SelectedVal");
+const step4SelectedVal = document.getElementById("step4SelectedVal");
+const step1Icon = document.getElementById("step1Icon");
+const step2Icon = document.getElementById("step2Icon");
+const step3Icon = document.getElementById("step3Icon");
+const step4Icon = document.getElementById("step4Icon");
+const conn1 = document.getElementById("conn1");
+const conn2 = document.getElementById("conn2");
+const conn3 = document.getElementById("conn3");
+
+// Flow Sections & Inputs
+const flowSectionStep1 = document.getElementById("flowSectionStep1");
+const flowSectionStep2 = document.getElementById("flowSectionStep2");
+const flowSectionStep3 = document.getElementById("flowSectionStep3");
+const step2Hint = document.getElementById("step2Hint");
+const step3Hint = document.getElementById("step3Hint");
+const sectorPillsContainer = document.getElementById("sectorPillsContainer");
+const guidedFlowState = document.getElementById("guidedFlowState");
+const stockWorkspace = document.getElementById("stockWorkspace");
+
+const guideStep1Box = document.getElementById("guideStep1Box");
+const guideStep2Box = document.getElementById("guideStep2Box");
+const guideStep3Box = document.getElementById("guideStep3Box");
+const guideStep4Box = document.getElementById("guideStep4Box");
+const guideStep1Status = document.getElementById("guideStep1Status");
+const guideStep2Status = document.getElementById("guideStep2Status");
+const guideStep3Status = document.getElementById("guideStep3Status");
+const guideStep4Status = document.getElementById("guideStep4Status");
+
+// Controls
 const stockSelect = document.getElementById("stockSelect");
 const sectorSelect = document.getElementById("sectorSelect");
 const stockCountBadge = document.getElementById("stockCountBadge");
@@ -77,34 +120,278 @@ async function init() {
     setupEventListeners();
     setupTradeStrategyListeners();
     initDeadlineDefaults();
-    await loadSectorsList();
-    await loadStocksList();
-    await loadStockData(currentTicker);
+    updateFlowUI();
 }
 
-async function loadSectorsList() {
+/**
+ * Updates UI state across the 4-step progressive flow
+ */
+function updateFlowUI() {
+    // Step 1: Index Universe
+    if (!currentTier) {
+        step1Card.className = "step-card active";
+        step1Icon.textContent = "●";
+        step1SelectedVal.textContent = "Select Index";
+        if (guideStep1Status) guideStep1Status.textContent = "👉 Choose above";
+
+        step2Card.className = "step-card locked";
+        step2Icon.textContent = "🔒";
+        step2SelectedVal.textContent = "Waiting for Index";
+        if (guideStep2Status) guideStep2Status.textContent = "🔒 Locked";
+
+        step3Card.className = "step-card locked";
+        step3Icon.textContent = "🔒";
+        step3SelectedVal.textContent = "Waiting for Sector";
+        if (guideStep3Status) guideStep3Status.textContent = "🔒 Locked";
+
+        step4Card.className = "step-card locked";
+        step4Icon.textContent = "🔒";
+        step4SelectedVal.textContent = "Waiting for Stock";
+        if (guideStep4Status) guideStep4Status.textContent = "🔒 Locked";
+
+        conn1.className = "step-connector";
+        conn2.className = "step-connector";
+        conn3.className = "step-connector";
+
+        flowSectionStep1.className = "flow-step-section is-active";
+        flowSectionStep2.className = "flow-step-section is-disabled";
+        flowSectionStep3.className = "flow-step-section is-disabled";
+
+        sectorSelect.disabled = true;
+        stockSelect.disabled = true;
+        tableSearch.disabled = true;
+        refreshBtn.disabled = true;
+        exportCsvBtn.disabled = true;
+
+        workflowStatusBadge.innerHTML = '<span class="pulse-dot"></span> Step 1 of 4: Select Index Universe';
+        guidedFlowState.style.display = "flex";
+        stockWorkspace.style.display = "none";
+        return;
+    }
+
+    // Step 1 is chosen
+    step1Card.className = "step-card completed";
+    step1Icon.textContent = "✓";
+    step1SelectedVal.textContent = currentTier;
+    conn1.className = "step-connector completed";
+    if (guideStep1Status) guideStep1Status.textContent = `✓ ${currentTier}`;
+
+    // Step 2: Sector
+    if (!currentSector) {
+        step2Card.className = "step-card active";
+        step2Icon.textContent = "●";
+        step2SelectedVal.textContent = "Select Sector";
+        if (guideStep2Status) guideStep2Status.textContent = "👉 Choose sector";
+
+        step3Card.className = "step-card locked";
+        step3Icon.textContent = "🔒";
+        step3SelectedVal.textContent = "Waiting for Sector";
+        if (guideStep3Status) guideStep3Status.textContent = "🔒 Locked";
+
+        step4Card.className = "step-card locked";
+        step4Icon.textContent = "🔒";
+        step4SelectedVal.textContent = "Waiting for Stock";
+        if (guideStep4Status) guideStep4Status.textContent = "🔒 Locked";
+
+        conn2.className = "step-connector";
+        conn3.className = "step-connector";
+
+        flowSectionStep1.className = "flow-step-section is-completed";
+        flowSectionStep2.className = "flow-step-section is-active";
+        flowSectionStep3.className = "flow-step-section is-disabled";
+
+        sectorSelect.disabled = false;
+        stockSelect.disabled = true;
+        tableSearch.disabled = true;
+        refreshBtn.disabled = true;
+        exportCsvBtn.disabled = true;
+
+        workflowStatusBadge.innerHTML = `<span class="pulse-dot"></span> Step 2 of 4: Select Sector in ${currentTier}`;
+        guidedFlowState.style.display = "flex";
+        stockWorkspace.style.display = "none";
+        return;
+    }
+
+    // Step 2 is chosen
+    const displaySector = currentSector === "ALL" ? "All Sectors" : currentSector;
+    step2Card.className = "step-card completed";
+    step2Icon.textContent = "✓";
+    step2SelectedVal.textContent = displaySector;
+    conn2.className = "step-connector completed";
+    if (guideStep2Status) guideStep2Status.textContent = `✓ ${displaySector}`;
+
+    // Step 3: Stock
+    if (!currentTicker) {
+        step3Card.className = "step-card active";
+        step3Icon.textContent = "●";
+        step3SelectedVal.textContent = "Select Stock";
+        if (guideStep3Status) guideStep3Status.textContent = "👉 Choose stock";
+
+        step4Card.className = "step-card locked";
+        step4Icon.textContent = "🔒";
+        step4SelectedVal.textContent = "Waiting for Stock";
+        if (guideStep4Status) guideStep4Status.textContent = "🔒 Locked";
+
+        conn3.className = "step-connector";
+
+        flowSectionStep1.className = "flow-step-section is-completed";
+        flowSectionStep2.className = "flow-step-section is-completed";
+        flowSectionStep3.className = "flow-step-section is-active";
+
+        sectorSelect.disabled = false;
+        stockSelect.disabled = false;
+        tableSearch.disabled = false;
+        refreshBtn.disabled = true;
+        exportCsvBtn.disabled = true;
+
+        workflowStatusBadge.innerHTML = `<span class="pulse-dot"></span> Step 3 of 4: Select Stock to Analyze`;
+        guidedFlowState.style.display = "flex";
+        stockWorkspace.style.display = "none";
+        return;
+    }
+
+    // Step 3 is chosen & Stock is Loaded
+    step3Card.className = "step-card completed";
+    step3Icon.textContent = "✓";
+    step3SelectedVal.textContent = currentTicker;
+    conn3.className = "step-connector completed";
+    if (guideStep3Status) guideStep3Status.textContent = `✓ ${currentTicker}`;
+
+    // Step 4: Active Analysis Workspace
+    step4Card.className = "step-card active completed";
+    step4Icon.textContent = "✓";
+    step4SelectedVal.textContent = "Setup Active";
+    if (guideStep4Status) guideStep4Status.textContent = "✓ Active";
+
+    flowSectionStep1.className = "flow-step-section is-completed";
+    flowSectionStep2.className = "flow-step-section is-completed";
+    flowSectionStep3.className = "flow-step-section is-completed";
+
+    sectorSelect.disabled = false;
+    stockSelect.disabled = false;
+    tableSearch.disabled = false;
+    refreshBtn.disabled = false;
+    exportCsvBtn.disabled = false;
+
+    workflowStatusBadge.innerHTML = `<span class="status-indicator live"></span> Active Analysis: ${currentTicker} (${currentTier} › ${displaySector})`;
+    guidedFlowState.style.display = "none";
+    stockWorkspace.style.display = "flex";
+}
+
+/**
+ * Step 1 Action: Select Index Universe
+ */
+async function onSelectTier(tier) {
+    if (currentTier === tier && currentSector) return;
+    currentTier = tier;
+    currentSector = null;
+    currentTicker = null;
+
+    document.querySelectorAll(".tier-choice-btn").forEach(btn => {
+        if (btn.dataset.tier === tier) {
+            btn.classList.add("active");
+        } else {
+            btn.classList.remove("active");
+        }
+    });
+
+    updateFlowUI();
+    await loadSectorsForTier(tier);
+}
+
+/**
+ * Loads sectors dynamically for the chosen Index Universe
+ */
+async function loadSectorsForTier(tier) {
     if (!sectorSelect) return;
     try {
-        const res = await fetch("/api/sectors");
+        sectorSelect.innerHTML = `<option value="" disabled selected>⏳ Loading sectors in ${tier}...</option>`;
+        const res = await fetch(`/api/sectors?tier=${encodeURIComponent(tier)}`);
         const data = await res.json();
+        currentSectorDetails = data.sector_details || [];
         const sectors = data.sectors || [];
-        sectorSelect.innerHTML = `<option value="">All Sectors (${sectors.length})</option>`;
-        sectors.forEach(sec => {
+
+        sectorSelect.innerHTML = `
+            <option value="" disabled selected>-- Select Sector (${sectors.length} sectors in ${tier}) --</option>
+            <option value="ALL">All Sectors in ${tier} (All ${data.tier === 'NIFTY 50' ? 50 : data.tier === 'NIFTY 100' ? 100 : data.tier === 'NIFTY 200' ? 200 : '500+'} stocks)</option>
+        `;
+
+        currentSectorDetails.forEach(sec => {
             const opt = document.createElement("option");
-            opt.value = sec;
-            opt.textContent = sec;
+            opt.value = sec.name;
+            opt.textContent = `${sec.name} (${sec.count} stocks)`;
             sectorSelect.appendChild(opt);
         });
+
+        // Quick sector chip pills for fast 1-click selection
+        if (sectorPillsContainer) {
+            sectorPillsContainer.innerHTML = "";
+            sectorPillsContainer.style.display = "flex";
+
+            const allPill = document.createElement("button");
+            allPill.className = "sector-pill-chip";
+            allPill.innerHTML = `<span>All Sectors</span> <span class="sector-chip-count">${tier}</span>`;
+            allPill.addEventListener("click", () => {
+                sectorSelect.value = "ALL";
+                onSelectSector("ALL");
+            });
+            sectorPillsContainer.appendChild(allPill);
+
+            // Show top sectors
+            currentSectorDetails.slice(0, 10).forEach(sec => {
+                const pill = document.createElement("button");
+                pill.className = "sector-pill-chip";
+                pill.innerHTML = `<span>${sec.name}</span> <span class="sector-chip-count">${sec.count}</span>`;
+                pill.addEventListener("click", () => {
+                    sectorSelect.value = sec.name;
+                    onSelectSector(sec.name);
+                });
+                sectorPillsContainer.appendChild(pill);
+            });
+        }
+
+        if (step2Hint) {
+            step2Hint.textContent = `Choose a sector from ${tier} (${sectors.length} sectors available) or choose "All Sectors".`;
+        }
     } catch (err) {
-        console.warn("Could not load sectors list:", err);
+        console.error("Failed to load sectors for tier:", err);
+        sectorSelect.innerHTML = `<option value="" disabled selected>Error loading sectors</option>`;
     }
 }
 
-async function loadStocksList() {
+/**
+ * Step 2 Action: Select Sector
+ */
+async function onSelectSector(sector) {
+    if (!sector) return;
+    currentSector = sector;
+    currentTicker = null;
+
+    if (sectorPillsContainer) {
+        sectorPillsContainer.querySelectorAll(".sector-pill-chip").forEach(p => {
+            const pText = p.textContent;
+            if ((sector === "ALL" && pText.includes("All Sectors")) || pText.includes(sector)) {
+                p.classList.add("active");
+            } else {
+                p.classList.remove("active");
+            }
+        });
+    }
+
+    updateFlowUI();
+    await loadStocksForSector(currentTier, sector);
+}
+
+/**
+ * Loads stocks dynamically for the chosen Index Universe + Sector
+ */
+async function loadStocksForSector(tier, sector) {
+    if (!stockSelect) return;
     try {
+        stockSelect.innerHTML = `<option value="" disabled selected>⏳ Loading stocks...</option>`;
         const params = new URLSearchParams();
-        if (currentTier && currentTier !== "ALL") params.append("tier", currentTier);
-        if (currentSector) params.append("sector", currentSector);
+        if (tier && tier !== "ALL") params.append("tier", tier);
+        if (sector && sector !== "ALL") params.append("sector", sector);
 
         const res = await fetch(`/api/stocks?${params.toString()}`);
         const data = await res.json();
@@ -112,42 +399,54 @@ async function loadStocksList() {
 
         if (stockCountBadge) stockCountBadge.textContent = stocksList.length;
 
-        const sectors = {};
-        stocksList.forEach(s => {
-            const secName = s.sector || "Other";
-            if (!sectors[secName]) sectors[secName] = [];
-            sectors[secName].push(s);
-        });
+        stockSelect.innerHTML = `<option value="" disabled selected>-- Select Stock to Analyze (${stocksList.length} available) --</option>`;
 
-        stockSelect.innerHTML = "";
-        let foundCurrent = false;
+        if (sector === "ALL") {
+            const sectors = {};
+            stocksList.forEach(s => {
+                const secName = s.sector || "Other";
+                if (!sectors[secName]) sectors[secName] = [];
+                sectors[secName].push(s);
+            });
 
-        Object.keys(sectors).sort().forEach(sec => {
-            const optgroup = document.createElement("optgroup");
-            optgroup.label = sec;
-
-            sectors[sec].forEach(stock => {
+            Object.keys(sectors).sort().forEach(sec => {
+                const optgroup = document.createElement("optgroup");
+                optgroup.label = `${sec} (${sectors[sec].length})`;
+                sectors[sec].forEach(stock => {
+                    const opt = document.createElement("option");
+                    opt.value = stock.symbol;
+                    opt.textContent = `${stock.name} (${stock.symbol})`;
+                    optgroup.appendChild(opt);
+                });
+                stockSelect.appendChild(optgroup);
+            });
+        } else {
+            stocksList.forEach(stock => {
                 const opt = document.createElement("option");
                 opt.value = stock.symbol;
                 opt.textContent = `${stock.name} (${stock.symbol})`;
-                if (stock.symbol === currentTicker) {
-                    opt.selected = true;
-                    foundCurrent = true;
-                }
-                optgroup.appendChild(opt);
+                stockSelect.appendChild(opt);
             });
-            stockSelect.appendChild(optgroup);
-        });
+        }
 
-        // If currently selected stock is not in this filtered tier, select the first available stock
-        if (!foundCurrent && stocksList.length > 0) {
-            currentTicker = stocksList[0].symbol;
-            stockSelect.value = currentTicker;
-            await loadStockData(currentTicker);
+        if (step3Hint) {
+            const displaySec = sector === "ALL" ? "All Sectors" : sector;
+            step3Hint.textContent = `Choose a stock from ${tier} › ${displaySec} (${stocksList.length} stocks available).`;
         }
     } catch (err) {
-        console.error("Failed to load stocks list:", err);
+        console.error("Failed to load stocks:", err);
+        stockSelect.innerHTML = `<option value="" disabled selected>Error loading stocks</option>`;
     }
+}
+
+/**
+ * Step 3 Action: Select Stock to Analyze
+ */
+async function onSelectStock(ticker) {
+    if (!ticker) return;
+    currentTicker = ticker;
+    updateFlowUI();
+    await loadStockData(ticker);
 }
 
 
@@ -518,50 +817,84 @@ function renderChart(records) {
 }
 
 function setupEventListeners() {
-    stockSelect.addEventListener("change", e => {
-        currentTicker = e.target.value;
-        loadStockData(currentTicker);
+    // Flow Step 1: Index Selection
+    document.querySelectorAll(".tier-choice-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+            const tier = btn.dataset.tier;
+            onSelectTier(tier);
+        });
     });
 
+    // Flow Step 2: Sector Selection
+    if (sectorSelect) {
+        sectorSelect.addEventListener("change", e => {
+            onSelectSector(e.target.value);
+        });
+    }
+
+    // Flow Step 3: Stock Selection
+    if (stockSelect) {
+        stockSelect.addEventListener("change", e => {
+            onSelectStock(e.target.value);
+        });
+    }
+
+    // Timeframe Buttons
     document.querySelectorAll("[data-period]").forEach(btn => {
         btn.addEventListener("click", () => {
             document.querySelectorAll("[data-period]").forEach(b => b.classList.remove("active"));
             btn.classList.add("active");
             currentPeriod = btn.dataset.period;
-            loadStockData(currentTicker);
+            if (currentTicker) {
+                loadStockData(currentTicker);
+            }
         });
     });
 
-    document.querySelectorAll(".tier-btn").forEach(btn => {
-        btn.addEventListener("click", async () => {
-            document.querySelectorAll(".tier-btn").forEach(b => b.classList.remove("active"));
-            btn.classList.add("active");
-            currentTier = btn.dataset.tier;
-            await loadStocksList();
-        });
-    });
+    // Table Search & Quick Filter
+    if (tableSearch) {
+        tableSearch.addEventListener("input", e => {
+            const query = e.target.value.trim().toLowerCase();
+            
+            // If table has records, filter table
+            if (allRecords.length > 0) {
+                if (!query) {
+                    filteredRecords = [...allRecords];
+                } else {
+                    filteredRecords = allRecords.filter(r => r.Date.toLowerCase().includes(query));
+                }
+                currentPage = 1;
+                renderTable();
+            }
 
-    if (sectorSelect) {
-        sectorSelect.addEventListener("change", async e => {
-            currentSector = e.target.value;
-            await loadStocksList();
+            // Also filter stockSelect options if searching stock names
+            if (stocksList.length > 0 && stockSelect && !stockSelect.disabled) {
+                const options = stockSelect.querySelectorAll("option");
+                let matchCount = 0;
+                options.forEach(opt => {
+                    if (!opt.value) return; // Skip placeholder
+                    const text = opt.textContent.toLowerCase();
+                    const val = opt.value.toLowerCase();
+                    if (!query || text.includes(query) || val.includes(query)) {
+                        opt.style.display = "";
+                        matchCount++;
+                    } else {
+                        opt.style.display = "none";
+                    }
+                });
+            }
         });
     }
 
-
-    tableSearch.addEventListener("input", e => {
-        const query = e.target.value.trim().toLowerCase();
-        if (!query) {
-            filteredRecords = [...allRecords];
-        } else {
-            filteredRecords = allRecords.filter(r => r.Date.toLowerCase().includes(query));
-        }
-        currentPage = 1;
-        renderTable();
-    });
-
-    refreshBtn.addEventListener("click", () => loadStockData(currentTicker));
-    exportCsvBtn.addEventListener("click", exportToCsv);
+    // Refresh & Export
+    if (refreshBtn) {
+        refreshBtn.addEventListener("click", () => {
+            if (currentTicker) loadStockData(currentTicker);
+        });
+    }
+    if (exportCsvBtn) {
+        exportCsvBtn.addEventListener("click", exportToCsv);
+    }
 
     pageSizeSelect.addEventListener("change", e => {
         pageSize = e.target.value === "all" ? Infinity : parseInt(e.target.value, 10);

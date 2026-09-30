@@ -74,9 +74,15 @@ def get_tiers():
 
 
 @app.get("/api/sectors")
-def get_sectors():
-    """Returns unique sectors across the universe."""
-    return {"sectors": universe.get_all_sectors()}
+def get_sectors(tier: Optional[str] = Query(None, description="Index tier: ALL, NIFTY 50, NIFTY 100, NIFTY 200, NIFTY 500")):
+    """Returns unique sectors across the universe or filtered by index tier."""
+    tier_arg = None if (not tier or tier.upper() == "ALL") else tier
+    sector_details = universe.get_sectors_for_tier(tier_arg)
+    return {
+        "tier": tier or "ALL",
+        "sectors": [s["name"] for s in sector_details],
+        "sector_details": sector_details,
+    }
 
 
 @app.get("/api/stocks")

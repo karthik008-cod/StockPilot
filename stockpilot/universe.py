@@ -136,7 +136,8 @@ class UniverseManager:
 
         if index_tier and index_tier.strip():
             tier = index_tier.strip().upper()
-            results = [s for s in results if any(tier in idx.upper() for idx in s.get("indices", []))]
+            if tier != "ALL":
+                results = [s for s in results if any(tier == idx.strip().upper() for idx in s.get("indices", []))]
 
         if sector and sector.strip() and sector.lower() != "all":
             sec_lower = sector.strip().lower()
@@ -159,6 +160,15 @@ class UniverseManager:
         """Returns sorted list of distinct sectors/industries across the universe."""
         sectors = {s.get("sector") for s in self._stocks if s.get("sector")}
         return sorted(list(sectors))
+
+    def get_sectors_for_tier(self, index_tier: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Returns sorted list of distinct sectors with stock counts for a specific index tier."""
+        stocks = self.get_stocks(index_tier=index_tier)
+        counts: Dict[str, int] = {}
+        for s in stocks:
+            sec = s.get("sector") or "Other"
+            counts[sec] = counts.get(sec, 0) + 1
+        return [{"name": k, "count": v} for k, v in sorted(counts.items(), key=lambda x: x[0])]
 
     @staticmethod
     def get_benchmark_ticker(index_name: str = "NIFTY 50") -> str:

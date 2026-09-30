@@ -35,71 +35,229 @@
             </div>
         </header>
 
-        <section class="toolbar-card">
-            <div class="toolbar-row" style="margin-bottom: 12px; gap: 14px; flex-wrap: wrap; align-items: flex-end;">
-                <div class="control-group">
-                    <label class="control-label">Index Universe</label>
-                    <div class="button-toggle-group" id="tierToggleGroup">
-                        <button class="toggle-btn tier-btn active" data-tier="NIFTY 100">NIFTY 100</button>
-                        <button class="toggle-btn tier-btn" data-tier="NIFTY 50">NIFTY 50</button>
-                        <button class="toggle-btn tier-btn" data-tier="NIFTY 200">NIFTY 200</button>
-                        <button class="toggle-btn tier-btn" data-tier="NIFTY 500">NIFTY 500</button>
-                        <button class="toggle-btn tier-btn" data-tier="ALL">All (500)</button>
-                    </div>
+        <!-- Progressive Workflow Stepper Tracker -->
+        <section class="workflow-stepper-card" id="workflowStepperCard">
+            <div class="stepper-header">
+                <div class="stepper-title-wrap">
+                    <span class="stepper-pill">DISCIPLINED EXECUTION</span>
+                    <h2 class="stepper-title">Analysis & Setup Pipeline</h2>
                 </div>
-
-                <div class="control-group" style="min-width: 200px;">
-                    <label for="sectorSelect" class="control-label">Sector Filter</label>
-                    <div class="select-wrapper">
-                        <select id="sectorSelect" class="custom-select">
-                            <option value="">All Sectors</option>
-                        </select>
-                        <span class="select-arrow">▼</span>
-                    </div>
+                <div class="stepper-current-status" id="workflowStatusBadge">
+                    <span class="pulse-dot"></span> Step 1 of 4: Select Index Universe
                 </div>
             </div>
 
-            <div class="toolbar-row">
-                <div class="control-group stock-selector-group">
-                    <label for="stockSelect" class="control-label">Select Stock (<span id="stockCountBadge">100</span>)</label>
-                    <div class="select-wrapper">
-                        <select id="stockSelect" class="custom-select">
-                            <option value="" disabled selected>Loading stocks...</option>
-                        </select>
-                        <span class="select-arrow">▼</span>
+            <div class="stepper-steps-track">
+                <!-- Step 1: Index -->
+                <div class="step-card active" id="step1Card" data-step="1">
+                    <div class="step-badge-num">1</div>
+                    <div class="step-info">
+                        <div class="step-subtitle">Step 1</div>
+                        <div class="step-name">Index Universe</div>
+                        <div class="step-selected-val" id="step1SelectedVal">Select Index</div>
                     </div>
+                    <div class="step-state-icon" id="step1Icon">●</div>
                 </div>
 
-                <div class="control-group">
-                    <label class="control-label">Timeframe</label>
-                    <div class="button-toggle-group">
-                        <button class="toggle-btn" data-period="1mo">1M</button>
-                        <button class="toggle-btn" data-period="6mo">6M</button>
-                        <button class="toggle-btn" data-period="1y">1Y</button>
-                        <button class="toggle-btn" data-period="3y">3Y</button>
-                        <button class="toggle-btn active" data-period="max">Max</button>
+                <div class="step-connector" id="conn1"></div>
+
+                <!-- Step 2: Sector -->
+                <div class="step-card locked" id="step2Card" data-step="2">
+                    <div class="step-badge-num">2</div>
+                    <div class="step-info">
+                        <div class="step-subtitle">Step 2</div>
+                        <div class="step-name">Sector / Industry</div>
+                        <div class="step-selected-val" id="step2SelectedVal">Waiting for Index</div>
                     </div>
+                    <div class="step-state-icon" id="step2Icon">🔒</div>
                 </div>
 
+                <div class="step-connector" id="conn2"></div>
 
-                <div class="control-group search-group">
-                    <label for="tableSearch" class="control-label">Filter Records</label>
-                    <div class="search-wrapper">
-                        <input type="text" id="tableSearch" placeholder="Search by Date (e.g. 2024-03)..." class="search-input">
-                        <span class="search-icon">🔍</span>
+                <!-- Step 3: Stock -->
+                <div class="step-card locked" id="step3Card" data-step="3">
+                    <div class="step-badge-num">3</div>
+                    <div class="step-info">
+                        <div class="step-subtitle">Step 3</div>
+                        <div class="step-name">Select Stock</div>
+                        <div class="step-selected-val" id="step3SelectedVal">Waiting for Sector</div>
                     </div>
+                    <div class="step-state-icon" id="step3Icon">🔒</div>
                 </div>
 
-                <div class="toolbar-actions">
-                    <button id="refreshBtn" class="btn btn-secondary">
-                        <span class="btn-icon">↻</span> Refresh
-                    </button>
-                    <button id="exportCsvBtn" class="btn btn-primary">
-                        <span class="btn-icon">📥</span> Export CSV
-                    </button>
+                <div class="step-connector" id="conn3"></div>
+
+                <!-- Step 4: Trade Setup & Horizon -->
+                <div class="step-card locked" id="step4Card" data-step="4">
+                    <div class="step-badge-num">4</div>
+                    <div class="step-info">
+                        <div class="step-subtitle">Step 4</div>
+                        <div class="step-name">Trade Plan & Sizing</div>
+                        <div class="step-selected-val" id="step4SelectedVal">Waiting for Stock</div>
+                    </div>
+                    <div class="step-state-icon" id="step4Icon">🔒</div>
                 </div>
             </div>
         </section>
+
+        <!-- Progressive Flow Interactive Controls -->
+        <section class="flow-controls-panel" id="flowControlsPanel">
+            <!-- Step 1 Section: Index Universe -->
+            <div class="flow-step-section is-active" id="flowSectionStep1">
+                <div class="step-section-heading">
+                    <span class="step-section-number">1</span>
+                    <div>
+                        <h3 class="step-section-title">Select Index Universe</h3>
+                        <p class="step-section-hint">Choose which market index universe to scan (NIFTY 50 blue chips up to NIFTY 500 broad market).</p>
+                    </div>
+                </div>
+                <div class="tier-buttons-grid" id="tierToggleGroup">
+                    <button class="tier-choice-btn" data-tier="NIFTY 50">
+                        <div class="tier-btn-header">
+                            <span class="tier-choice-title">NIFTY 50</span>
+                            <span class="tier-count-pill">50 Stocks</span>
+                        </div>
+                        <span class="tier-choice-desc">Flagship blue-chip market leaders</span>
+                    </button>
+                    <button class="tier-choice-btn" data-tier="NIFTY 100">
+                        <div class="tier-btn-header">
+                            <span class="tier-choice-title">NIFTY 100</span>
+                            <span class="tier-count-pill">100 Stocks</span>
+                        </div>
+                        <span class="tier-choice-desc">Top 100 large-cap enterprises</span>
+                    </button>
+                    <button class="tier-choice-btn" data-tier="NIFTY 200">
+                        <div class="tier-btn-header">
+                            <span class="tier-choice-title">NIFTY 200</span>
+                            <span class="tier-count-pill">200 Stocks</span>
+                        </div>
+                        <span class="tier-choice-desc">Large & mid-cap growth universe</span>
+                    </button>
+                    <button class="tier-choice-btn" data-tier="NIFTY 500">
+                        <div class="tier-btn-header">
+                            <span class="tier-choice-title">NIFTY 500</span>
+                            <span class="tier-count-pill">501 Stocks</span>
+                        </div>
+                        <span class="tier-choice-desc">Broad market index across India</span>
+                    </button>
+                    <button class="tier-choice-btn" data-tier="ALL">
+                        <div class="tier-btn-header">
+                            <span class="tier-choice-title">All Indices</span>
+                            <span class="tier-count-pill">500+ Stocks</span>
+                        </div>
+                        <span class="tier-choice-desc">Complete Indian Equities</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Step 2 Section: Sector Filter -->
+            <div class="flow-step-section is-disabled" id="flowSectionStep2">
+                <div class="step-section-heading">
+                    <span class="step-section-number">2</span>
+                    <div>
+                        <h3 class="step-section-title">Select Sector / Industry</h3>
+                        <p class="step-section-hint" id="step2Hint">Select an Index above to unlock sector filtering.</p>
+                    </div>
+                </div>
+                <div class="flow-controls-row">
+                    <div class="control-group flex-1">
+                        <div class="select-wrapper">
+                            <select id="sectorSelect" class="custom-select" disabled>
+                                <option value="" disabled selected>🔒 Select an Index first...</option>
+                            </select>
+                            <span class="select-arrow">▼</span>
+                        </div>
+                    </div>
+                </div>
+                <div id="sectorPillsContainer" class="sector-quick-pills" style="display: none;"></div>
+            </div>
+
+            <!-- Step 3 Section: Stock Selector & Search -->
+            <div class="flow-step-section is-disabled" id="flowSectionStep3">
+                <div class="step-section-heading">
+                    <span class="step-section-number">3</span>
+                    <div>
+                        <h3 class="step-section-title">Select Stock to Analyze (<span id="stockCountBadge">0</span> available)</h3>
+                        <p class="step-section-hint" id="step3Hint">Select a Sector above to unlock stock constituents.</p>
+                    </div>
+                </div>
+                <div class="flow-controls-row">
+                    <div class="control-group stock-selector-group flex-1">
+                        <div class="select-wrapper">
+                            <select id="stockSelect" class="custom-select" disabled>
+                                <option value="" disabled selected>🔒 Select a Sector first...</option>
+                            </select>
+                            <span class="select-arrow">▼</span>
+                        </div>
+                    </div>
+
+                    <div class="control-group search-group" style="min-width: 240px;">
+                        <div class="search-wrapper">
+                            <input type="text" id="tableSearch" placeholder="Search by Date or Symbol..." class="search-input" disabled>
+                            <span class="search-icon">🔍</span>
+                        </div>
+                    </div>
+
+                    <div class="control-group">
+                        <div class="button-toggle-group">
+                            <button class="toggle-btn" data-period="1mo">1M</button>
+                            <button class="toggle-btn" data-period="6mo">6M</button>
+                            <button class="toggle-btn" data-period="1y">1Y</button>
+                            <button class="toggle-btn" data-period="3y">3Y</button>
+                            <button class="toggle-btn active" data-period="max">Max</button>
+                        </div>
+                    </div>
+
+                    <div class="toolbar-actions">
+                        <button id="refreshBtn" class="btn btn-secondary" title="Refresh Data" disabled>
+                            <span class="btn-icon">↻</span> Refresh
+                        </button>
+                        <button id="exportCsvBtn" class="btn btn-primary" title="Export CSV" disabled>
+                            <span class="btn-icon">📥</span> Export CSV
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Guided Flow State (Displayed when no stock is selected yet) -->
+        <section class="guided-flow-card" id="guidedFlowState">
+            <div class="guided-flow-icon">🎯</div>
+            <h3 class="guided-flow-title">Follow the Flow to Begin Analysis</h3>
+            <p class="guided-flow-desc">
+                StockPilot enforces a disciplined, top-down workflow:
+                <strong>Index Universe</strong> → <strong>Sector</strong> → <strong>Stock</strong> → <strong>Trade Setup & Risk Sizing</strong>.
+            </p>
+            <div class="guided-flow-rule-badge">
+                <span class="rule-icon">🛡️</span>
+                <span><strong>Core Principle:</strong> No trades is much, much better than loss trades. Only take high-conviction setups.</span>
+            </div>
+            <div class="guided-flow-steps-grid">
+                <div class="guided-step-item" id="guideStep1Box">
+                    <span class="guide-step-num">Step 1</span>
+                    <span class="guide-step-label">Select Index</span>
+                    <span class="guide-step-status" id="guideStep1Status">👉 Choose above</span>
+                </div>
+                <div class="guided-step-item" id="guideStep2Box">
+                    <span class="guide-step-num">Step 2</span>
+                    <span class="guide-step-label">Select Sector</span>
+                    <span class="guide-step-status" id="guideStep2Status">🔒 Locked</span>
+                </div>
+                <div class="guided-step-item" id="guideStep3Box">
+                    <span class="guide-step-num">Step 3</span>
+                    <span class="guide-step-label">Select Stock</span>
+                    <span class="guide-step-status" id="guideStep3Status">🔒 Locked</span>
+                </div>
+                <div class="guided-step-item" id="guideStep4Box">
+                    <span class="guide-step-num">Step 4</span>
+                    <span class="guide-step-label">Trade Plan & Sizing</span>
+                    <span class="guide-step-status" id="guideStep4Status">🔒 Locked</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Stock Workspace (Wraps Summary, Details, Trade Planner, Chart, Table) -->
+        <div id="stockWorkspace" class="stock-workspace" style="display: none;">
 
         <section id="summaryRibbon" class="summary-grid">
             <div class="summary-card main-stock-card">
@@ -328,6 +486,19 @@
                 <div class="strategy-badge" id="strategyTrendBadge">Analyzing Setup...</div>
             </div>
 
+            <!-- User Strategy Disclaimer / Signal Policy Banner -->
+            <div class="strategy-notice-banner">
+                <div class="notice-icon">🛡️</div>
+                <div class="notice-content">
+                    <div class="notice-title">Discipline Policy: "No trade is much better than a loss trade"</div>
+                    <div class="notice-text">
+                        The parameters below are calculated strictly as a <strong>Trade Setup & Position Sizing Planner</strong> for your selected stock. 
+                        StockPilot will <strong>not</strong> recommend stocks or issue buy/sell trade calls without a verified signal matching your custom-built strategy setups.
+                    </div>
+                </div>
+                <div class="notice-pill">Setup Calculator</div>
+            </div>
+
             <!-- Global Trading Configuration Bar -->
             <div class="global-config-bar" id="globalConfigBar">
                 <div class="global-config-group">
@@ -516,6 +687,7 @@
                 </table>
             </div>
         </section>
+        </div> <!-- End of stockWorkspace -->
     </div>
 
     <script src="/static/app.js"></script>
