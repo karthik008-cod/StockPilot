@@ -48,8 +48,27 @@ const yearRangeProgress = document.getElementById("yearRangeProgress");
 const latestVolumeEl = document.getElementById("latestVolume");
 const totalRecordCountEl = document.getElementById("totalRecordCount");
 
+// Trade Strategy & Capital Horizon State
+let currentStrategy = "full"; // "full" (Option A) or "deadline" (Option B)
+let currentTradeSetup = null;
+let tradeSetupDebounceTimer = null;
+
+// Strategy DOM Elements
+const strategyTrendBadge = document.getElementById("strategyTrendBadge");
+const optACard = document.getElementById("optACard");
+const optBCard = document.getElementById("optBCard");
+const radioOptA = document.getElementById("radioOptA");
+const radioOptB = document.getElementById("radioOptB");
+const deadlineConfigBar = document.getElementById("deadlineConfigBar");
+const deadlineDateInput = document.getElementById("deadlineDateInput");
+const borrowedCapitalInput = document.getElementById("borrowedCapitalInput");
+const borrowRateInput = document.getElementById("borrowRateInput");
+const planDetailsPanel = document.getElementById("planDetailsPanel");
+
 async function init() {
     setupEventListeners();
+    setupTradeStrategyListeners();
+    initDeadlineDefaults();
     await loadSectorsList();
     await loadStocksList();
     await loadStockData(currentTicker);
@@ -168,6 +187,7 @@ async function loadStockData(ticker) {
         updateSummary(data);
         renderTable();
         renderChart(allRecords);
+        fetchTradeSetup(ticker);
 
     } catch (err) {
         console.error("Error loading stock data:", err);
@@ -630,6 +650,323 @@ function exportToCsv() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+}
+
+// ==========================================
+// Trade Strategy & Capital Horizon Logic
+// ==========================================
+
+function initDeadlineDefaults() {
+    if (deadlineDateInput && !deadlineDateInput.value) {
+        setDeadlineFromDays(30);
+    }
+}
+
+function setDeadlineFromDays(days) {
+    const d = new Date();
+    d.setDate(d.getDate() + days);
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    const dateStr = `${yyyy}-${mm}-${dd}`;
+    if (deadlineDateInput) {
+        deadlineDateInput.value = dateStr;
+    }
+}
+
+async function fetchTradeSetup(ticker) {
+    if (!planDetailsPanel) return;
+
+    try {
+        const deadline = deadlineDateInput ? deadlineDateInput.value : "";
+        const capital = borrowedCapitalInput ? parseFloat(borrowedCapitalInput.value) || 100000 : 100000;
+        const rate = borrowRateInput ? parseFloat(borrowRateInput.value) || 10.0 : 10.0;
+
+        const params = new URLSearchParams({
+            ticker: ticker || currentTicker,
+            capital: capital,
+            interest_rate: rate,
+        });
+        if (deadline) {
+            params.append("deadline_date", deadline);
+        }
+
+        const res = await fetch(`/api/trade-setup?${params.toString()}`);
+        if (!res.ok) {
+            throw new Error(`Trade setup returned status ${res.status}`);
+        }
+        currentTradeSetup = await res.json();
+
+        // Update Trend Badge
+        if (strategyTrendBadge && currentTradeSetup.option_a_full_trade) {
+            const trend = currentTradeSetup.option_a_full_trade.trend || "Neutral";
+            strategyTrendBadge.textContent = `${trend} Setup`;
+            if (trend.includes("Bullish")) {
+                strategyTrendBadge.style.color = "#34D399";
+                strategyTrendBadge.style.borderColor = "rgba(52, 211, 153, 0.4)";
+                strategyTrendBadge.style.background = "rgba(52, 211, 153, 0.12)";
+            } else if (trend.includes("Bearish")) {
+                strategyTrendBadge.style.color = "#FB7185";
+                strategyTrendBadge.style.borderColor = "rgba(251, 113, 133, 0.4)";
+                strategyTrendBadge.style.background = "rgba(251, 113, 133, 0.12)";
+            } else {
+                strategyTrendBadge.style.color = "#A5B4FC";
+                strategyTrendBadge.style.borderColor = "rgba(99, 102, 241, 0.4)";
+                strategyTrendBadge.style.background = "rgba(99, 102, 241, 0.12)";
+            }
+        }
+
+        renderTradePlan();
+    } catch (err) {
+        console.error("Failed to load trade setup:", err);
+        if (planDetailsPanel) {
+            planDetailsPanel.innerHTML = `
+                <div style="color: #FB7185; padding: 12px; font-size: 0.9rem;">
+                    Could not compute trade setup for ${ticker}: ${err.message}
+                </div>
+            `;
+        }
+    }
+}
+
+function renderTradePlan() {
+    if (!planDetailsPanel || !currentTradeSetup) return;
+
+    const cmp = currentTradeSetup.current_market_price || 0.0;
+
+    if (currentStrategy === "full") {
+        const a = currentTradeSetup.option_a_full_trade;
+        if (!a) return;
+
+        planDetailsPanel.innerHTML = `
+            <div class="plan-stats-grid">
+                <div class="plan-stat-box">
+                    <div class="plan-stat-label">
+                        <span>Optimal Entry Zone</span>
+                        <span style="color: var(--accent-cyan); font-weight: 700;">CMP ₹${formatNumber(cmp)}</span>
+                    </div>
+                    <div class="plan-stat-val">₹${formatNumber(a.entry_zone_min)} - ₹${formatNumber(a.entry_zone_max)}</div>
+                    <div class="plan-stat-sub">Enter on limit or minor retracement</div>
+                </div>
+
+                <div class="plan-stat-box">
+                    <div class="plan-stat-label">
+                        <span>Target 1 (Primary)</span>
+                        <span style="color: #34D399; font-weight: 700;">+${a.target_1_pct}%</span>
+                    </div>
+                    <div class="plan-stat-val" style="color: #34D399;">₹${formatNumber(a.target_1)}</div>
+                    <div class="plan-stat-sub positive">Conservative 2.0x ATR technical target</div>
+                </div>
+
+                <div class="plan-stat-box">
+                    <div class="plan-stat-label">
+                        <span>Target 2 (Extended)</span>
+                        <span style="color: #6EE7B7; font-weight: 700;">+${a.target_2_pct}%</span>
+                    </div>
+                    <div class="plan-stat-val" style="color: #6EE7B7;">₹${formatNumber(a.target_2)}</div>
+                    <div class="plan-stat-sub positive">Breakout 3.5x ATR momentum expansion</div>
+                </div>
+
+                <div class="plan-stat-box">
+                    <div class="plan-stat-label">
+                        <span>Technical Stop-Loss</span>
+                        <span style="color: #FB7185; font-weight: 700;">${a.stop_loss_pct}%</span>
+                    </div>
+                    <div class="plan-stat-val" style="color: #FB7185;">₹${formatNumber(a.stop_loss)}</div>
+                    <div class="plan-stat-sub negative">Swing structure & 1.5x ATR dynamic support</div>
+                </div>
+
+                <div class="plan-stat-box">
+                    <div class="plan-stat-label">
+                        <span>Risk to Reward</span>
+                        <span style="color: #A5B4FC; font-weight: 700;">Ratio</span>
+                    </div>
+                    <div class="plan-stat-val">1 : ${a.risk_reward_ratio}</div>
+                    <div class="plan-stat-sub ${a.risk_reward_ratio >= 1.5 ? 'positive' : ''}">${a.risk_reward_ratio >= 1.5 ? 'Favorable Risk/Reward' : 'Standard R:R Profile'}</div>
+                </div>
+
+                <div class="plan-stat-box">
+                    <div class="plan-stat-label">
+                        <span>Est. Completion Window</span>
+                        <span style="color: #CBD5E1; font-weight: 700;">Swing Horizon</span>
+                    </div>
+                    <div class="plan-stat-val">~${a.expected_holding_days} Days</div>
+                    <div class="plan-stat-sub">14-Day ATR: ₹${formatNumber(a.atr_14)} / session</div>
+                </div>
+            </div>
+
+            <div class="plan-rule-banner rule-banner-a">
+                <span class="banner-icon">🎯</span>
+                <div>
+                    <strong>Option A Full Trade Execution Rule:</strong> ${a.exit_rule}
+                    <div style="font-size: 0.82rem; color: #94A3B8; margin-top: 4px;">
+                        ${a.strategy_summary}
+                    </div>
+                </div>
+            </div>
+        `;
+    } else {
+        const b = currentTradeSetup.option_b_deadline;
+        if (!b) return;
+
+        const isProfitable = b.net_projected_pnl >= 0;
+
+        planDetailsPanel.innerHTML = `
+            <div class="plan-stats-grid">
+                <div class="plan-stat-box">
+                    <div class="plan-stat-label">
+                        <span>Repayment Countdown</span>
+                        <span style="color: var(--accent-amber); font-weight: 700;">${b.deadline_date}</span>
+                    </div>
+                    <div class="plan-stat-val" style="color: var(--accent-amber);">${b.calendar_days_remaining} Days</div>
+                    <div class="plan-stat-sub">~${b.trading_days_remaining} trading sessions until capital must be returned</div>
+                </div>
+
+                <div class="plan-stat-box">
+                    <div class="plan-stat-label">
+                        <span>Realizable Target (By Date)</span>
+                        <span style="color: #34D399; font-weight: 700;">+${b.target_pct}%</span>
+                    </div>
+                    <div class="plan-stat-val" style="color: #34D399;">₹${formatNumber(b.time_constrained_target)}</div>
+                    <div class="plan-stat-sub positive">Bounded by volatility & time cone (&sigma;&radic;T)</div>
+                </div>
+
+                <div class="plan-stat-box">
+                    <div class="plan-stat-label">
+                        <span>Tightened Protection SL</span>
+                        <span style="color: #FB7185; font-weight: 700;">${b.stop_loss_pct}%</span>
+                    </div>
+                    <div class="plan-stat-val" style="color: #FB7185;">₹${formatNumber(b.tightened_stop_loss)}</div>
+                    <div class="plan-stat-sub negative">Tightened 1.0x ATR for debt capital safety</div>
+                </div>
+
+                <div class="plan-stat-box">
+                    <div class="plan-stat-label">
+                        <span>Debt Financing Cost</span>
+                        <span style="color: #FCA5A5; font-weight: 700;">${b.annual_interest_rate}% p.a.</span>
+                    </div>
+                    <div class="plan-stat-val" style="color: #F87171;">₹${formatNumber(b.accrued_borrowing_cost)}</div>
+                    <div class="plan-stat-sub negative">Accrued cost on ₹${formatNumber(b.borrowed_capital)} borrowed</div>
+                </div>
+
+                <div class="plan-stat-box">
+                    <div class="plan-stat-label">
+                        <span>Net P&L (Post-Debt Return)</span>
+                        <span class="${isProfitable ? 'positive' : 'negative'}" style="font-weight: 700;">${isProfitable ? '+' : ''}${b.net_roi_pct}% Net ROI</span>
+                    </div>
+                    <div class="plan-stat-val ${isProfitable ? 'positive' : 'negative'}" style="color: ${isProfitable ? '#34D399' : '#FB7185'};">
+                        ${isProfitable ? '+' : ''}₹${formatNumber(b.net_projected_pnl)}
+                    </div>
+                    <div class="plan-stat-sub ${isProfitable ? 'positive' : 'negative'}">
+                        Gross ₹${formatNumber(b.gross_projected_pnl)} - Interest ₹${formatNumber(b.accrued_borrowing_cost)}
+                    </div>
+                </div>
+
+                <div class="plan-stat-box">
+                    <div class="plan-stat-label">
+                        <span>Execution Feasibility</span>
+                        <span style="color: #FCD34D; font-weight: 700;">Pacing</span>
+                    </div>
+                    <div class="plan-stat-val" style="font-size: 1.05rem;">${b.urgency_rating}</div>
+                    <div class="plan-stat-sub">${b.feasibility_status}</div>
+                </div>
+            </div>
+
+            <div class="plan-rule-banner rule-banner-b">
+                <span class="banner-icon">⚠️</span>
+                <div>
+                    <strong style="color: #F87171;">MANDATORY BORROWED CAPITAL REPAYMENT RULE:</strong> ${b.mandatory_exit_rule}
+                    <div style="font-size: 0.82rem; color: #FECACA; margin-top: 4px;">
+                        Regardless of market condition, profit, or loss, you must close the position by <strong>${b.deadline_date}</strong> to return borrowed capital of ₹${formatNumber(b.borrowed_capital)}.
+                    </div>
+                    <div style="font-size: 0.78rem; color: #CBD5E1; margin-top: 3px;">
+                        ${b.strategy_summary}
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+}
+
+function selectStrategy(strategy) {
+    currentStrategy = strategy;
+    if (strategy === "full") {
+        if (optACard) optACard.classList.add("active");
+        if (optBCard) optBCard.classList.remove("active");
+        if (radioOptA) radioOptA.checked = true;
+        if (radioOptB) radioOptB.checked = false;
+        if (deadlineConfigBar) deadlineConfigBar.style.display = "none";
+    } else {
+        if (optBCard) optBCard.classList.add("active");
+        if (optACard) optACard.classList.remove("active");
+        if (radioOptB) radioOptB.checked = true;
+        if (radioOptA) radioOptA.checked = false;
+        if (deadlineConfigBar) deadlineConfigBar.style.display = "flex";
+    }
+    renderTradePlan();
+}
+
+function setupTradeStrategyListeners() {
+    if (optACard) {
+        optACard.addEventListener("click", () => {
+            selectStrategy("full");
+        });
+    }
+    if (radioOptA) {
+        radioOptA.addEventListener("change", () => {
+            selectStrategy("full");
+        });
+    }
+
+    if (optBCard) {
+        optBCard.addEventListener("click", () => {
+            selectStrategy("deadline");
+        });
+    }
+    if (radioOptB) {
+        radioOptB.addEventListener("change", () => {
+            selectStrategy("deadline");
+        });
+    }
+
+    // Quick Horizon Pills
+    document.querySelectorAll(".horizon-pill-btn").forEach(btn => {
+        btn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            document.querySelectorAll(".horizon-pill-btn").forEach(b => b.classList.remove("active"));
+            btn.classList.add("active");
+            const days = parseInt(btn.dataset.days, 10);
+            if (!isNaN(days)) {
+                setDeadlineFromDays(days);
+                fetchTradeSetup(currentTicker);
+            }
+        });
+    });
+
+    if (deadlineDateInput) {
+        deadlineDateInput.addEventListener("change", () => {
+            document.querySelectorAll(".horizon-pill-btn").forEach(b => b.classList.remove("active"));
+            fetchTradeSetup(currentTicker);
+        });
+    }
+
+    if (borrowedCapitalInput) {
+        borrowedCapitalInput.addEventListener("input", () => {
+            clearTimeout(tradeSetupDebounceTimer);
+            tradeSetupDebounceTimer = setTimeout(() => {
+                fetchTradeSetup(currentTicker);
+            }, 400);
+        });
+    }
+
+    if (borrowRateInput) {
+        borrowRateInput.addEventListener("input", () => {
+            clearTimeout(tradeSetupDebounceTimer);
+            tradeSetupDebounceTimer = setTimeout(() => {
+                fetchTradeSetup(currentTicker);
+            }, 400);
+        });
+    }
 }
 
 document.addEventListener("DOMContentLoaded", init);

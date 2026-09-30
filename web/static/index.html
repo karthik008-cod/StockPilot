@@ -314,10 +314,98 @@
             </div>
         </section>
 
+        <!-- Trade Strategy & Capital Horizon Planner (Option A vs Option B) -->
+        <section class="strategy-card" id="strategyCard">
+            <div class="strategy-header">
+                <div>
+                    <h2 class="strategy-title">
+                        <span class="strategy-icon">🎯</span> Trade Strategy & Capital Horizon Planner
+                    </h2>
+                    <p class="strategy-subtitle">
+                        Select your trade exit model: Stay for full technical completion or enforce a strict capital repayment deadline.
+                    </p>
+                </div>
+                <div class="strategy-badge" id="strategyTrendBadge">Analyzing Setup...</div>
+            </div>
+
+            <!-- Two Interactive Strategy Choice Cards -->
+            <div class="strategy-options-grid">
+                <!-- Option A: Full Technical Trade -->
+                <div class="strategy-choice-card active" id="optACard">
+                    <div class="choice-header">
+                        <div class="choice-radio-wrap">
+                            <input type="radio" id="radioOptA" name="tradeStrategy" value="full" checked>
+                            <label for="radioOptA" class="choice-title">Option A: Full Technical Trade</label>
+                        </div>
+                        <span class="choice-tag tag-target">Target & SL Driven</span>
+                    </div>
+                    <p class="choice-desc">
+                        Stay in the trade for the entire duration until the technical target price or stop-loss is reached. Best when there are no debt repayment deadlines or time pressures.
+                    </p>
+                    <div class="choice-features">
+                        <span>✓ Multi-Tier Targets (T1 & T2)</span>
+                        <span>✓ Technical Support Stop-Loss</span>
+                        <span>✓ Maximize Trend Capture</span>
+                    </div>
+                </div>
+
+                <!-- Option B: Deadline-Constrained Trade -->
+                <div class="strategy-choice-card" id="optBCard">
+                    <div class="choice-header">
+                        <div class="choice-radio-wrap">
+                            <input type="radio" id="radioOptB" name="tradeStrategy" value="deadline">
+                            <label for="radioOptB" class="choice-title">Option B: Deadline-Constrained</label>
+                        </div>
+                        <span class="choice-tag tag-deadline">Borrowed Capital / Fixed Date</span>
+                    </div>
+                    <p class="choice-desc">
+                        Stay strictly until a given deadline date. Tailored for trading with borrowed money, margin, or funds that must be returned by an agreed-upon repayment date.
+                    </p>
+                    <div class="choice-features">
+                        <span>✓ Time-Decay Realizable Target</span>
+                        <span>✓ Tightened Capital-Protection SL</span>
+                        <span>✓ Debt Financing Cost Deduction</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Option B Config Bar (Visible when Option B is selected) -->
+            <div class="deadline-config-bar" id="deadlineConfigBar" style="display: none;">
+                <div class="deadline-input-group">
+                    <label for="deadlineDateInput" class="config-label">Repayment Deadline Date</label>
+                    <input type="date" id="deadlineDateInput" class="config-date-input">
+                </div>
+
+                <div class="quick-horizon-pills">
+                    <span class="pills-label">Quick Horizon:</span>
+                    <button class="horizon-pill-btn" data-days="7">+7 Days</button>
+                    <button class="horizon-pill-btn" data-days="15">+15 Days</button>
+                    <button class="horizon-pill-btn active" data-days="30">+30 Days</button>
+                    <button class="horizon-pill-btn" data-days="60">+60 Days</button>
+                </div>
+
+                <div class="deadline-input-group">
+                    <label for="borrowedCapitalInput" class="config-label">Borrowed Capital (₹)</label>
+                    <input type="number" id="borrowedCapitalInput" class="config-num-input" value="100000" step="5000">
+                </div>
+
+                <div class="deadline-input-group">
+                    <label for="borrowRateInput" class="config-label">Interest Rate (% p.a.)</label>
+                    <input type="number" id="borrowRateInput" class="config-num-input" value="10.0" step="0.5">
+                </div>
+            </div>
+
+            <!-- Dynamic Trade Plan Detail View -->
+            <div class="plan-details-panel" id="planDetailsPanel">
+                <!-- Dynamically populated via JavaScript -->
+            </div>
+        </section>
+
         <section class="chart-card">
             <div class="chart-header">
                 <div class="chart-title">
                     <span>Price & Volume Trend</span>
+
                     <span id="chartRangeLabel" class="chart-subtitle">All Historical Observations</span>
                 </div>
                 <div id="chartHoverInfo" class="chart-hover-info">
