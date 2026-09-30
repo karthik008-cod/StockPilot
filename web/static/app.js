@@ -50,6 +50,8 @@ const totalRecordCountEl = document.getElementById("totalRecordCount");
 
 // Trade Strategy & Capital Horizon State
 let currentStrategy = "full"; // "full" (Option A) or "deadline" (Option B)
+let currentTradeTerm = "medium"; // "short", "medium", "long"
+let currentTradingType = "swing"; // "swing", "positional", "investing", "intraday", "futures", "options"
 let currentTradeSetup = null;
 let tradeSetupDebounceTimer = null;
 
@@ -60,10 +62,16 @@ const optBCard = document.getElementById("optBCard");
 const radioOptA = document.getElementById("radioOptA");
 const radioOptB = document.getElementById("radioOptB");
 const deadlineConfigBar = document.getElementById("deadlineConfigBar");
+const termConfigBar = document.getElementById("termConfigBar");
 const deadlineDateInput = document.getElementById("deadlineDateInput");
 const borrowedCapitalInput = document.getElementById("borrowedCapitalInput");
 const borrowRateInput = document.getElementById("borrowRateInput");
 const planDetailsPanel = document.getElementById("planDetailsPanel");
+
+// Global Config DOM Elements
+const tradingTypeSelect = document.getElementById("tradingTypeSelect");
+const availableCapitalInput = document.getElementById("availableCapitalInput");
+const maxLossInput = document.getElementById("maxLossInput");
 
 async function init() {
     setupEventListeners();
@@ -681,9 +689,16 @@ async function fetchTradeSetup(ticker) {
         const deadline = deadlineDateInput ? deadlineDateInput.value : "";
         const capital = borrowedCapitalInput ? parseFloat(borrowedCapitalInput.value) || 100000 : 100000;
         const rate = borrowRateInput ? parseFloat(borrowRateInput.value) || 10.0 : 10.0;
+        const avlCapital = availableCapitalInput ? parseFloat(availableCapitalInput.value) || 100000 : 100000;
+        const maxLoss = maxLossInput ? parseFloat(maxLossInput.value) || 2000 : 2000;
+        const tradingType = tradingTypeSelect ? tradingTypeSelect.value : "swing";
 
         const params = new URLSearchParams({
             ticker: ticker || currentTicker,
+            trade_term: currentTradeTerm,
+            trading_type: tradingType,
+            available_capital: avlCapital,
+            max_loss: maxLoss,
             capital: capital,
             interest_rate: rate,
         });
@@ -738,6 +753,8 @@ function renderTradePlan() {
         const a = currentTradeSetup.option_a_full_trade;
         if (!a) return;
 
+        const ps = a.position_sizing || {};
+
         planDetailsPanel.innerHTML = `
             <div class="plan-stats-grid">
                 <div class="plan-stat-box">
@@ -746,7 +763,7 @@ function renderTradePlan() {
                         <span style="color: var(--accent-cyan); font-weight: 700;">CMP ₹${formatNumber(cmp)}</span>
                     </div>
                     <div class="plan-stat-val">₹${formatNumber(a.entry_zone_min)} - ₹${formatNumber(a.entry_zone_max)}</div>
-                    <div class="plan-stat-sub">Enter on limit or minor retracement</div>
+                    <div class="plan-stat-sub">${a.trade_term_label || 'Medium-Term'} ${(a.trading_type || 'swing').charAt(0).toUpperCase() + (a.trading_type || 'swing').slice(1)} trade</div>
                 </div>
 
                 <div class="plan-stat-box">
@@ -755,7 +772,7 @@ function renderTradePlan() {
                         <span style="color: #34D399; font-weight: 700;">+${a.target_1_pct}%</span>
                     </div>
                     <div class="plan-stat-val" style="color: #34D399;">₹${formatNumber(a.target_1)}</div>
-                    <div class="plan-stat-sub positive">Conservative 2.0x ATR technical target</div>
+                    <div class="plan-stat-sub positive">${a.trade_term_label} ATR-scaled technical target</div>
                 </div>
 
                 <div class="plan-stat-box">
@@ -764,7 +781,7 @@ function renderTradePlan() {
                         <span style="color: #6EE7B7; font-weight: 700;">+${a.target_2_pct}%</span>
                     </div>
                     <div class="plan-stat-val" style="color: #6EE7B7;">₹${formatNumber(a.target_2)}</div>
-                    <div class="plan-stat-sub positive">Breakout 3.5x ATR momentum expansion</div>
+                    <div class="plan-stat-sub positive">Breakout momentum expansion target</div>
                 </div>
 
                 <div class="plan-stat-box">
@@ -773,7 +790,7 @@ function renderTradePlan() {
                         <span style="color: #FB7185; font-weight: 700;">${a.stop_loss_pct}%</span>
                     </div>
                     <div class="plan-stat-val" style="color: #FB7185;">₹${formatNumber(a.stop_loss)}</div>
-                    <div class="plan-stat-sub negative">Swing structure & 1.5x ATR dynamic support</div>
+                    <div class="plan-stat-sub negative">Swing structure & ATR dynamic support</div>
                 </div>
 
                 <div class="plan-stat-box">
@@ -788,17 +805,19 @@ function renderTradePlan() {
                 <div class="plan-stat-box">
                     <div class="plan-stat-label">
                         <span>Est. Completion Window</span>
-                        <span style="color: #CBD5E1; font-weight: 700;">Swing Horizon</span>
+                        <span style="color: #CBD5E1; font-weight: 700;">${a.trade_term_label || 'Swing'} Horizon</span>
                     </div>
                     <div class="plan-stat-val">~${a.expected_holding_days} Days</div>
                     <div class="plan-stat-sub">14-Day ATR: ₹${formatNumber(a.atr_14)} / session</div>
                 </div>
             </div>
 
+            ${renderPositionSizing(ps, a.target_1, a.target_2, a.stop_loss, cmp)}
+
             <div class="plan-rule-banner rule-banner-a">
                 <span class="banner-icon">🎯</span>
                 <div>
-                    <strong>Option A Full Trade Execution Rule:</strong> ${a.exit_rule}
+                    <strong>Option A ${a.trade_term_label} ${(a.trading_type || 'Swing').charAt(0).toUpperCase() + (a.trading_type || 'Swing').slice(1)} Execution Rule:</strong> ${a.exit_rule}
                     <div style="font-size: 0.82rem; color: #94A3B8; margin-top: 4px;">
                         ${a.strategy_summary}
                     </div>
@@ -872,6 +891,8 @@ function renderTradePlan() {
                 </div>
             </div>
 
+            ${renderPositionSizing(b.position_sizing || {}, b.time_constrained_target, b.time_constrained_target * 1.02, b.tightened_stop_loss, cmp)}
+
             <div class="plan-rule-banner rule-banner-b">
                 <span class="banner-icon">⚠️</span>
                 <div>
@@ -888,6 +909,69 @@ function renderTradePlan() {
     }
 }
 
+function renderPositionSizing(ps, t1, t2, sl, entry) {
+    if (!ps || ps.position_size_shares === undefined) return '';
+
+    const riskPerShare = ps.risk_per_share || 0;
+    const shares = ps.position_size_shares || 0;
+    const capReq = ps.capital_required || 0;
+    const maxLossActual = ps.max_loss_actual || 0;
+    const profitT1 = ps.potential_profit_t1 || 0;
+    const profitT2 = ps.potential_profit_t2 || 0;
+    const capUtil = ps.capital_utilization_pct || 0;
+    const note = ps.sizing_note || '';
+
+    return `
+        <div class="position-sizing-grid">
+            <div class="pos-size-header">
+                <span>📐</span> Position Sizing & Risk Management
+            </div>
+
+            <div class="pos-stat-mini">
+                <span class="pos-stat-mini-label">Position Size</span>
+                <span class="pos-stat-mini-val highlight-shares">${shares.toLocaleString()} shares</span>
+            </div>
+
+            <div class="pos-stat-mini">
+                <span class="pos-stat-mini-label">Capital Required</span>
+                <span class="pos-stat-mini-val">₹${formatNumber(capReq)}</span>
+            </div>
+
+            <div class="pos-stat-mini">
+                <span class="pos-stat-mini-label">Capital Utilization</span>
+                <span class="pos-stat-mini-val">${capUtil.toFixed(1)}%</span>
+            </div>
+
+            <div class="pos-stat-mini">
+                <span class="pos-stat-mini-label">Risk / Share</span>
+                <span class="pos-stat-mini-val highlight-loss">₹${formatNumber(riskPerShare)}</span>
+            </div>
+
+            <div class="pos-stat-mini">
+                <span class="pos-stat-mini-label">Max Loss (Actual)</span>
+                <span class="pos-stat-mini-val highlight-loss">₹${formatNumber(maxLossActual)}</span>
+            </div>
+
+            <div class="pos-stat-mini">
+                <span class="pos-stat-mini-label">Profit if T1 Hit</span>
+                <span class="pos-stat-mini-val highlight-profit">+₹${formatNumber(profitT1)}</span>
+            </div>
+
+            <div class="pos-stat-mini">
+                <span class="pos-stat-mini-label">Profit if T2 Hit</span>
+                <span class="pos-stat-mini-val highlight-profit">+₹${formatNumber(profitT2)}</span>
+            </div>
+
+            <div class="pos-stat-mini">
+                <span class="pos-stat-mini-label">Shares Affordable</span>
+                <span class="pos-stat-mini-val">${(ps.shares_affordable || 0).toLocaleString()}</span>
+            </div>
+
+            ${note ? `<div class="sizing-note-bar">💡 ${note}</div>` : ''}
+        </div>
+    `;
+}
+
 function selectStrategy(strategy) {
     currentStrategy = strategy;
     if (strategy === "full") {
@@ -896,12 +980,14 @@ function selectStrategy(strategy) {
         if (radioOptA) radioOptA.checked = true;
         if (radioOptB) radioOptB.checked = false;
         if (deadlineConfigBar) deadlineConfigBar.style.display = "none";
+        if (termConfigBar) termConfigBar.style.display = "flex";
     } else {
         if (optBCard) optBCard.classList.add("active");
         if (optACard) optACard.classList.remove("active");
         if (radioOptB) radioOptB.checked = true;
         if (radioOptA) radioOptA.checked = false;
         if (deadlineConfigBar) deadlineConfigBar.style.display = "flex";
+        if (termConfigBar) termConfigBar.style.display = "none";
     }
     renderTradePlan();
 }
@@ -961,6 +1047,44 @@ function setupTradeStrategyListeners() {
 
     if (borrowRateInput) {
         borrowRateInput.addEventListener("input", () => {
+            clearTimeout(tradeSetupDebounceTimer);
+            tradeSetupDebounceTimer = setTimeout(() => {
+                fetchTradeSetup(currentTicker);
+            }, 400);
+        });
+    }
+
+    // ─── Trade Term Pills ────────────────────────────────────────────
+    document.querySelectorAll(".term-pill-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+            document.querySelectorAll(".term-pill-btn").forEach(b => b.classList.remove("active"));
+            btn.classList.add("active");
+            currentTradeTerm = btn.dataset.term;
+            fetchTradeSetup(currentTicker);
+        });
+    });
+
+    // ─── Global Config: Trading Type ────────────────────────────────
+    if (tradingTypeSelect) {
+        tradingTypeSelect.addEventListener("change", () => {
+            currentTradingType = tradingTypeSelect.value;
+            fetchTradeSetup(currentTicker);
+        });
+    }
+
+    // ─── Global Config: Available Capital ────────────────────────────
+    if (availableCapitalInput) {
+        availableCapitalInput.addEventListener("input", () => {
+            clearTimeout(tradeSetupDebounceTimer);
+            tradeSetupDebounceTimer = setTimeout(() => {
+                fetchTradeSetup(currentTicker);
+            }, 400);
+        });
+    }
+
+    // ─── Global Config: Max Acceptable Loss ──────────────────────────
+    if (maxLossInput) {
+        maxLossInput.addEventListener("input", () => {
             clearTimeout(tradeSetupDebounceTimer);
             tradeSetupDebounceTimer = setTimeout(() => {
                 fetchTradeSetup(currentTicker);

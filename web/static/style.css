@@ -1142,6 +1142,205 @@ body {
     margin-bottom: 20px;
 }
 
+/* ─── Global Trading Configuration Bar ──────────────────────────────── */
+.global-config-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 16px;
+    padding: 16px 20px;
+    background: rgba(99, 102, 241, 0.06);
+    border: 1px solid rgba(99, 102, 241, 0.2);
+    border-radius: var(--radius-md);
+    margin-bottom: 20px;
+    animation: fadeIn 0.3s ease;
+}
+
+.global-config-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.config-label-global {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #A5B4FC;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.config-select-input {
+    background: rgba(15, 23, 42, 0.9);
+    border: 1px solid rgba(99, 102, 241, 0.3);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    font-family: var(--font-main);
+    font-size: 0.88rem;
+    font-weight: 600;
+    padding: 7px 12px;
+    outline: none;
+    cursor: pointer;
+    min-width: 170px;
+    transition: all 0.2s ease;
+    appearance: auto;
+}
+
+.config-select-input:focus {
+    border-color: var(--accent-indigo);
+    box-shadow: 0 0 12px rgba(99, 102, 241, 0.3);
+}
+
+.config-num-global {
+    border-color: rgba(99, 102, 241, 0.3);
+}
+
+.config-num-global:focus {
+    border-color: var(--accent-indigo);
+    box-shadow: 0 0 12px rgba(99, 102, 241, 0.3);
+}
+
+/* ─── Trade Term Selector Bar (Option A) ────────────────────────────── */
+.term-config-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 20px;
+    background: rgba(6, 182, 212, 0.06);
+    border: 1px solid rgba(6, 182, 212, 0.2);
+    border-radius: var(--radius-md);
+    margin-bottom: 20px;
+    animation: fadeIn 0.3s ease;
+}
+
+.term-pills-wrap {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.term-pill-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1.5px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    padding: 10px 18px;
+    cursor: pointer;
+    transition: all 0.25s ease;
+    min-width: 110px;
+    font-family: var(--font-main);
+}
+
+.term-pill-btn:hover {
+    background: rgba(6, 182, 212, 0.12);
+    border-color: rgba(6, 182, 212, 0.4);
+    transform: translateY(-2px);
+}
+
+.term-pill-btn.active {
+    background: rgba(6, 182, 212, 0.18);
+    border-color: var(--accent-cyan);
+    box-shadow: 0 0 18px rgba(6, 182, 212, 0.25);
+}
+
+.term-pill-icon {
+    font-size: 1.15rem;
+}
+
+.term-pill-text {
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.term-pill-btn.active .term-pill-text {
+    color: var(--accent-cyan);
+}
+
+.term-pill-range {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+}
+
+.term-pill-btn.active .term-pill-range {
+    color: #67E8F9;
+}
+
+/* ─── Position Sizing Display ───────────────────────────────────────── */
+.position-sizing-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 12px;
+    margin-top: 16px;
+    padding: 16px;
+    background: rgba(99, 102, 241, 0.05);
+    border: 1px solid rgba(99, 102, 241, 0.18);
+    border-radius: var(--radius-md);
+}
+
+.pos-size-header {
+    grid-column: 1 / -1;
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: #A5B4FC;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding-bottom: 8px;
+    border-bottom: 1px solid rgba(99, 102, 241, 0.15);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.pos-stat-mini {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.pos-stat-mini-label {
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.pos-stat-mini-val {
+    font-size: 1.1rem;
+    font-weight: 800;
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+}
+
+.pos-stat-mini-val.highlight-shares {
+    color: var(--accent-cyan);
+    font-size: 1.3rem;
+}
+
+.pos-stat-mini-val.highlight-profit {
+    color: #34D399;
+}
+
+.pos-stat-mini-val.highlight-loss {
+    color: #FB7185;
+}
+
+.sizing-note-bar {
+    grid-column: 1 / -1;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    padding: 8px 12px;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: var(--radius-sm);
+    border-left: 3px solid var(--accent-indigo);
+    margin-top: 4px;
+}
+
 .strategy-choice-card {
     background: rgba(15, 23, 42, 0.6);
     border: 2px solid var(--border-subtle);

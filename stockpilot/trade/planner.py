@@ -3,22 +3,94 @@
 Provides two distinct trade execution modes:
   Mode A: Full Technical Trade (Hold until target price or stop-loss exit)
   Mode B: Deadline-Constrained Trade (Hold until fixed deadline date for borrowed capital repayment)
+
+Supports position sizing based on available capital and maximum acceptable loss,
+trade term selection (short/medium/long), and trading type classification.
 """
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from datetime import date, datetime, timedelta
 import logging
-from typing import Any, Dict, Optional, Tuple
+import math
+from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 
 logger = logging.getLogger(__name__)
+
+# ─── Trading Type Definitions ────────────────────────────────────────────────
+# Which types are supportable from Yahoo Finance OHLCV equity data
+VALID_TRADING_TYPES = [
+    "swing",          # 2-30 day holds, technical breakouts
+    "positional",     # 1-6 month holds, trend following
+    "investing",      # 6+ month holds, fundamental + technical
+    "intraday",       # Same-day close (limited: we compute levels, user executes)
+    "futures",        # F&O segment (entry/SL/target applicable; margin-based sizing)
+    "options",        # Options (limited: we provide directional view + strike guidance)
+]
+
+# ─── Trade Term Definitions ──────────────────────────────────────────────────
+TERM_CONFIGS = {
+    "short": {
+        "label": "Short-Term",
+        "atr_target_mult": 1.5,     # Conservative T1 multiplier
+        "atr_target2_mult": 2.5,    # Extended T2 multiplier
+        "atr_sl_mult": 1.2,         # Tighter stop
+        "min_days": 2,
+        "max_days": 15,
+        "sl_max_pct": 0.03,         # Max 3% SL
+        "desc": "Quick momentum capture, 2-15 trading days",
+    },
+    "medium": {
+        "label": "Medium-Term",
+        "atr_target_mult": 2.0,
+        "atr_target2_mult": 3.5,
+        "atr_sl_mult": 1.5,
+        "min_days": 5,
+        "max_days": 45,
+        "sl_max_pct": 0.05,         # Max 5% SL
+        "desc": "Swing trade setup, 5-45 trading days",
+    },
+    "long": {
+        "label": "Long-Term",
+        "atr_target_mult": 3.0,
+        "atr_target2_mult": 5.0,
+        "atr_sl_mult": 2.0,
+        "min_days": 20,
+        "max_days": 180,
+        "sl_max_pct": 0.08,         # Max 8% SL
+        "desc": "Positional / investment horizon, 20-180 trading days",
+    },
+}
+
+
+@dataclass
+class PositionSizing:
+    """Position sizing computed from available capital and max acceptable loss."""
+    available_capital: float = 0.0
+    max_acceptable_loss: float = 0.0
+    risk_per_share: float = 0.0
+    position_size_shares: int = 0
+    capital_required: float = 0.0
+    capital_utilization_pct: float = 0.0
+    max_loss_actual: float = 0.0
+    potential_profit_t1: float = 0.0
+    potential_profit_t2: float = 0.0
+    shares_affordable: int = 0
+    is_affordable: bool = True
+    sizing_note: str = ""
+
+    def to_dict(self) -> Dict[str, Any]:
+        return asdict(self)
 
 
 @dataclass
 class FullTradePlan:
     """Strategy A: Target-Driven Trade Plan (No deadline constraint)."""
     mode: str = "full_trade"
+    trade_term: str = "medium"
+    trade_term_label: str = "Medium-Term"
+    trading_type: str = "swing"
     entry_price: float = 0.0
     entry_zone_min: float = 0.0
     entry_zone_max: float = 0.0
@@ -32,6 +104,7 @@ class FullTradePlan:
     expected_holding_days: int = 0
     atr_14: float = 0.0
     trend: str = "Neutral"
+    position_sizing: dict = field(default_factory=dict)
     exit_rule: str = "Hold position until Target Price or Stop-Loss is reached. No calendar deadline."
     strategy_summary: str = ""
 
@@ -43,6 +116,7 @@ class FullTradePlan:
 class DeadlineTradePlan:
     """Strategy B: Deadline-Constrained Trade Plan (For borrowed capital / fixed repayment date)."""
     mode: str = "deadline_constrained"
+    trading_type: str = "swing"
     entry_price: float = 0.0
     entry_zone_min: float = 0.0
     entry_zone_max: float = 0.0
@@ -60,6 +134,7 @@ class DeadlineTradePlan:
     gross_projected_pnl: float = 0.0
     net_projected_pnl: float = 0.0
     net_roi_pct: float = 0.0
+    position_sizing: dict = field(default_factory=dict)
     urgency_rating: str = "Normal"
     feasibility_status: str = "Feasible"
     mandatory_exit_rule: str = "Position MUST be liquidated on or before deadline date to return borrowed funds."
@@ -70,7 +145,13 @@ class DeadlineTradePlan:
 
 
 class TradePlanner:
-    """Calculates trade parameters for both Full Technical and Deadline-Constrained modes."""
+    """Calculates trade parameters for both Full Technical and Deadline-Constrained modes.
+
+    Now includes:
+      - Trade term (short / medium / long) for Option A
+      - Trading type (swing / positional / investing / intraday / futures / options)
+      - Position sizing from available capital and max acceptable loss
+    """
 
     def __init__(self, atr_window: int = 14):
         self.atr_window = atr_window
@@ -119,11 +200,99 @@ class TradePlanner:
             return "Mild Bearish"
         return "Consolidation"
 
-    def plan_full_trade(self, df: pd.DataFrame, ticker: str = "TICKER") -> FullTradePlan:
-        """Calculates full technical trade setup (Option A: Hold until target or stop-loss)."""
+    @staticmethod
+    def compute_position_sizing(
+        entry_price: float,
+        stop_loss: float,
+        target_1: float,
+        target_2: float,
+        available_capital: float,
+        max_acceptable_loss: float,
+    ) -> PositionSizing:
+        """Calculates optimal position size from risk management constraints.
+
+        Position Size = Max Acceptable Loss / Risk Per Share
+        where Risk Per Share = Entry Price - Stop Loss
+
+        Ensures capital_required does not exceed available_capital.
+        """
+        risk_per_share = abs(entry_price - stop_loss)
+        if risk_per_share < 0.01:
+            risk_per_share = entry_price * 0.02  # Fallback 2% risk
+
+        # Max shares from risk tolerance
+        risk_shares = int(max_acceptable_loss / risk_per_share) if max_acceptable_loss > 0 else 0
+
+        # Max shares affordable
+        affordable = int(available_capital / entry_price) if entry_price > 0 else 0
+
+        # Effective position = min of risk-based and affordability
+        position_size = min(risk_shares, affordable) if (risk_shares > 0 and affordable > 0) else max(risk_shares, affordable)
+        position_size = max(0, position_size)
+
+        capital_req = round(position_size * entry_price, 2)
+        cap_util = round((capital_req / available_capital) * 100, 2) if available_capital > 0 else 0.0
+        actual_max_loss = round(position_size * risk_per_share, 2)
+        profit_t1 = round(position_size * max(target_1 - entry_price, 0), 2)
+        profit_t2 = round(position_size * max(target_2 - entry_price, 0), 2)
+
+        is_affordable = capital_req <= available_capital
+
+        if position_size == 0:
+            note = "Position size is 0. Either capital is too low or max loss tolerance is too tight for this stock's price."
+        elif not is_affordable:
+            note = f"Capital required ({capital_req:,.0f}) exceeds available capital ({available_capital:,.0f}). Reduce position or increase capital."
+        elif cap_util > 80:
+            note = f"High capital utilization ({cap_util:.1f}%). Consider diversifying across multiple positions."
+        elif cap_util < 20:
+            note = f"Low utilization ({cap_util:.1f}%). You may increase position size within risk limits."
+        else:
+            note = f"Position utilizes {cap_util:.1f}% of available capital. Within prudent allocation bounds."
+
+        return PositionSizing(
+            available_capital=available_capital,
+            max_acceptable_loss=max_acceptable_loss,
+            risk_per_share=round(risk_per_share, 2),
+            position_size_shares=position_size,
+            capital_required=capital_req,
+            capital_utilization_pct=cap_util,
+            max_loss_actual=actual_max_loss,
+            potential_profit_t1=profit_t1,
+            potential_profit_t2=profit_t2,
+            shares_affordable=affordable,
+            is_affordable=is_affordable,
+            sizing_note=note,
+        )
+
+    def plan_full_trade(
+        self,
+        df: pd.DataFrame,
+        ticker: str = "TICKER",
+        trade_term: str = "medium",
+        trading_type: str = "swing",
+        available_capital: float = 100000.0,
+        max_acceptable_loss: float = 2000.0,
+    ) -> FullTradePlan:
+        """Calculates full technical trade setup (Option A: Hold until target or stop-loss).
+
+        Args:
+            trade_term: "short" (2-15d), "medium" (5-45d), or "long" (20-180d)
+            trading_type: "swing", "positional", "investing", "intraday", "futures", "options"
+            available_capital: Total capital the user has available for this trade
+            max_acceptable_loss: Maximum rupee amount the user is willing to lose
+        """
         valid_df = df.dropna(subset=["Close", "High", "Low"])
         if valid_df.empty or len(valid_df) < 10:
             raise ValueError(f"Insufficient price history for {ticker}")
+
+        # Validate trade_term
+        if trade_term not in TERM_CONFIGS:
+            trade_term = "medium"
+        tc = TERM_CONFIGS[trade_term]
+
+        # Validate trading_type
+        if trading_type not in VALID_TRADING_TYPES:
+            trading_type = "swing"
 
         clean_df = valid_df.sort_values("Date").reset_index(drop=True)
         cmp = float(clean_df["Close"].iloc[-1])
@@ -139,18 +308,19 @@ class TradePlanner:
         entry_min = round(cmp * 0.995, 2)
         entry_max = round(cmp * 1.005, 2)
 
-        # Stop Loss: max of (CMP - 1.5 * ATR) and (recent swing low - 0.2 * ATR)
-        sl_raw = min(cmp - 1.5 * atr, recent_low - 0.2 * atr)
-        sl = max(cmp * 0.92, min(cmp * 0.985, sl_raw))
+        # ─── Term-Adjusted Stop Loss ─────────────────────────────────────────
+        sl_raw = min(cmp - tc["atr_sl_mult"] * atr, recent_low - 0.2 * atr)
+        sl_floor = cmp * (1.0 - tc["sl_max_pct"])
+        sl = max(sl_floor, min(cmp * 0.985, sl_raw))
         sl = round(sl, 2)
         sl_pct = round(((sl - cmp) / cmp) * 100.0, 2)
 
-        # Target 1: Conservative 2.0 * ATR
-        t1 = round(max(cmp * 1.03, cmp + 2.0 * atr), 2)
+        # ─── Term-Adjusted Targets ───────────────────────────────────────────
+        t1_min_pct = {"short": 1.02, "medium": 1.03, "long": 1.05}
+        t1 = round(max(cmp * t1_min_pct.get(trade_term, 1.03), cmp + tc["atr_target_mult"] * atr), 2)
         t1_pct = round(((t1 - cmp) / cmp) * 100.0, 2)
 
-        # Target 2: Extended 3.5 * ATR (or swing breakout)
-        t2 = round(max(t1 * 1.03, cmp + 3.5 * atr), 2)
+        t2 = round(max(t1 * 1.03, cmp + tc["atr_target2_mult"] * atr), 2)
         t2_pct = round(((t2 - cmp) / cmp) * 100.0, 2)
 
         # Risk-to-Reward Ratio (against Target 1)
@@ -158,24 +328,40 @@ class TradePlanner:
         reward = max(t1 - cmp, 0.01)
         rr_ratio = round(reward / risk, 2)
 
-        # Estimated holding period based on ATR movement speed
+        # ─── Term-Adjusted Holding Period ────────────────────────────────────
         daily_progress = max(0.35 * atr, 0.005 * cmp)
         ratio_val = reward / daily_progress
         if np.isnan(ratio_val) or np.isinf(ratio_val):
-            expected_days = 15
+            expected_days = (tc["min_days"] + tc["max_days"]) // 2
         else:
-            expected_days = int(np.clip(np.ceil(ratio_val), 5, 45))
+            expected_days = int(np.clip(np.ceil(ratio_val), tc["min_days"], tc["max_days"]))
 
+        # ─── Position Sizing ─────────────────────────────────────────────────
+        sizing = self.compute_position_sizing(
+            entry_price=cmp,
+            stop_loss=sl,
+            target_1=t1,
+            target_2=t2,
+            available_capital=available_capital,
+            max_acceptable_loss=max_acceptable_loss,
+        )
 
         summary = (
-            f"Technical target-driven trade for {ticker}. Enter between ₹{entry_min} - ₹{entry_max}. "
-            f"Target 1 at ₹{t1} (+{t1_pct}%), Target 2 at ₹{t2} (+{t2_pct}%), with Stop-Loss at ₹{sl} ({sl_pct}%). "
-            f"Risk/Reward: 1:{rr_ratio}. Estimated technical completion window: {expected_days} trading days. "
+            f"{tc['label']} {trading_type.title()} trade for {ticker}. "
+            f"Enter between INR {entry_min} - INR {entry_max}. "
+            f"Target 1 at INR {t1} (+{t1_pct}%), Target 2 at INR {t2} (+{t2_pct}%), "
+            f"with Stop-Loss at INR {sl} ({sl_pct}%). "
+            f"Risk/Reward: 1:{rr_ratio}. Position: {sizing.position_size_shares} shares "
+            f"(Capital: INR {sizing.capital_required:,.0f}, Max Loss: INR {sizing.max_loss_actual:,.0f}). "
+            f"Estimated {tc['label'].lower()} completion: {expected_days} trading days. "
             f"Hold position until either target or stop-loss triggers."
         )
 
         return FullTradePlan(
             mode="full_trade",
+            trade_term=trade_term,
+            trade_term_label=tc["label"],
+            trading_type=trading_type,
             entry_price=round(cmp, 2),
             entry_zone_min=entry_min,
             entry_zone_max=entry_max,
@@ -189,7 +375,8 @@ class TradePlanner:
             expected_holding_days=expected_days,
             atr_14=round(atr, 2),
             trend=trend,
-            exit_rule="Hold position strictly until Target Price or Stop-Loss is reached. No artificial time exit.",
+            position_sizing=sizing.to_dict(),
+            exit_rule=f"Hold position strictly until Target Price or Stop-Loss is reached. No artificial time exit. ({tc['label']} {trading_type.title()} mode).",
             strategy_summary=summary,
         )
 
@@ -200,11 +387,17 @@ class TradePlanner:
         deadline_date: Optional[str] = None,
         capital: float = 100000.0,
         annual_interest_rate: float = 10.0,
+        trading_type: str = "swing",
+        available_capital: float = 100000.0,
+        max_acceptable_loss: float = 2000.0,
     ) -> DeadlineTradePlan:
         """Calculates deadline-constrained trade setup (Option B: Must exit and return borrowed capital by date)."""
         valid_df = df.dropna(subset=["Close", "High", "Low"])
         if valid_df.empty or len(valid_df) < 10:
             raise ValueError(f"Insufficient price history for {ticker}")
+
+        if trading_type not in VALID_TRADING_TYPES:
+            trading_type = "swing"
 
         clean_df = valid_df.sort_values("Date").reset_index(drop=True)
 
@@ -277,17 +470,34 @@ class TradePlanner:
             urgency = "Normal"
             feasibility = "High Feasibility (Sufficient time buffer for target delivery before repayment)"
 
+        # ─── Position Sizing for Option B ────────────────────────────────────
+        # Use time_target as T1, and a 1.5x stretch as T2 equivalent
+        opt_b_t2 = round(cmp + 1.5 * (time_target - cmp), 2)
+        sizing = self.compute_position_sizing(
+            entry_price=cmp,
+            stop_loss=tight_sl,
+            target_1=time_target,
+            target_2=opt_b_t2,
+            available_capital=available_capital,
+            max_acceptable_loss=max_acceptable_loss,
+        )
+
         summary = (
-            f"Deadline-constrained trade for {ticker}. Capital repayment deadline: {target_dt.strftime('%d-%b-%Y')} "
+            f"Deadline-constrained {trading_type.title()} trade for {ticker}. "
+            f"Capital repayment deadline: {target_dt.strftime('%d-%b-%Y')} "
             f"({calendar_days} calendar days / ~{trading_days} trading days remaining). "
-            f"Time-adjusted Target: ₹{time_target} (+{target_pct}%), Tightened Capital-Protection SL: ₹{tight_sl} ({sl_pct}%). "
-            f"On ₹{capital:,.0f} borrowed capital @ {rate}% p.a., financing cost is ₹{accrued_cost:,.2f}. "
-            f"Expected Net Profit after returning borrowed funds: ₹{net_pnl:,.2f} (+{net_roi}% net ROI). "
+            f"Time-adjusted Target: INR {time_target} (+{target_pct}%), "
+            f"Tightened Capital-Protection SL: INR {tight_sl} ({sl_pct}%). "
+            f"Position: {sizing.position_size_shares} shares "
+            f"(Capital: INR {sizing.capital_required:,.0f}, Max Loss: INR {sizing.max_loss_actual:,.0f}). "
+            f"On INR {capital:,.0f} borrowed capital @ {rate}% p.a., financing cost is INR {accrued_cost:,.2f}. "
+            f"Expected Net Profit after returning borrowed funds: INR {net_pnl:,.2f} (+{net_roi}% net ROI). "
             f"Mandatory rule: Liquidate position on or before {target_dt.strftime('%d-%b-%Y')} at market price."
         )
 
         return DeadlineTradePlan(
             mode="deadline_constrained",
+            trading_type=trading_type,
             entry_price=round(cmp, 2),
             entry_zone_min=entry_min,
             entry_zone_max=entry_max,
@@ -305,6 +515,7 @@ class TradePlanner:
             gross_projected_pnl=gross_pnl,
             net_projected_pnl=net_pnl,
             net_roi_pct=net_roi,
+            position_sizing=sizing.to_dict(),
             urgency_rating=urgency,
             feasibility_status=feasibility,
             mandatory_exit_rule=f"Position MUST be exited on or before {target_dt.strftime('%d-%b-%Y')} to repay borrowed funds.",
@@ -315,23 +526,39 @@ class TradePlanner:
         self,
         df: pd.DataFrame,
         ticker: str = "TICKER",
+        trade_term: str = "medium",
+        trading_type: str = "swing",
+        available_capital: float = 100000.0,
+        max_acceptable_loss: float = 2000.0,
         deadline_date: Optional[str] = None,
-        capital: float = 100000.0,
+        borrowed_capital: float = 100000.0,
         annual_interest_rate: float = 10.0,
     ) -> Dict[str, Any]:
         """Generates comprehensive trade setup containing both Option A and Option B."""
-        full_plan = self.plan_full_trade(df, ticker=ticker)
+        full_plan = self.plan_full_trade(
+            df,
+            ticker=ticker,
+            trade_term=trade_term,
+            trading_type=trading_type,
+            available_capital=available_capital,
+            max_acceptable_loss=max_acceptable_loss,
+        )
         deadline_plan = self.plan_deadline_trade(
             df,
             ticker=ticker,
             deadline_date=deadline_date,
-            capital=capital,
+            capital=borrowed_capital,
             annual_interest_rate=annual_interest_rate,
+            trading_type=trading_type,
+            available_capital=available_capital,
+            max_acceptable_loss=max_acceptable_loss,
         )
 
         return {
             "ticker": ticker,
             "current_market_price": full_plan.entry_price,
+            "trading_type": trading_type,
+            "trade_term": trade_term,
             "option_a_full_trade": full_plan.to_dict(),
             "option_b_deadline": deadline_plan.to_dict(),
         }

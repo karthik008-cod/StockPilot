@@ -268,11 +268,18 @@ def get_stock_data(
 @app.get("/api/trade-setup")
 def get_trade_setup(
     ticker: str = Query("RELIANCE.NS", description="Stock ticker symbol"),
+    trade_term: str = Query("medium", description="Trade term: short, medium, or long"),
+    trading_type: str = Query("swing", description="Trading type: swing, positional, investing, intraday, futures, options"),
+    available_capital: Optional[float] = Query(100000.0, description="Total available capital in INR"),
+    max_loss: Optional[float] = Query(2000.0, description="Maximum acceptable loss in INR"),
     deadline_date: Optional[str] = Query(None, description="Repayment deadline date (YYYY-MM-DD)"),
     capital: Optional[float] = Query(100000.0, description="Borrowed capital in INR"),
     interest_rate: Optional[float] = Query(10.0, description="Annual borrowing cost % p.a."),
 ):
-    """Calculates Option A (Full Trade until Target/Exit) and Option B (Deadline-Constrained for Borrowed Capital)."""
+    """Calculates Option A (Full Trade until Target/Exit) and Option B (Deadline-Constrained for Borrowed Capital).
+
+    Includes position sizing computed from available capital and maximum acceptable loss.
+    """
     try:
         df = loader.load_ohlcv(ticker, period="max")
         if df.empty:
@@ -283,8 +290,12 @@ def get_trade_setup(
         setup = planner.generate_both_options(
             cleaned,
             ticker=ticker,
+            trade_term=trade_term or "medium",
+            trading_type=trading_type or "swing",
+            available_capital=available_capital or 100000.0,
+            max_acceptable_loss=max_loss or 2000.0,
             deadline_date=deadline_date,
-            capital=capital or 100000.0,
+            borrowed_capital=capital or 100000.0,
             annual_interest_rate=interest_rate or 10.0,
         )
         return setup

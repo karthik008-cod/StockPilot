@@ -322,10 +322,35 @@
                         <span class="strategy-icon">🎯</span> Trade Strategy & Capital Horizon Planner
                     </h2>
                     <p class="strategy-subtitle">
-                        Select your trade exit model: Stay for full technical completion or enforce a strict capital repayment deadline.
+                        Configure your trading profile, risk tolerance, and exit model. StockPilot will compute precise position sizing and trade parameters.
                     </p>
                 </div>
                 <div class="strategy-badge" id="strategyTrendBadge">Analyzing Setup...</div>
+            </div>
+
+            <!-- Global Trading Configuration Bar -->
+            <div class="global-config-bar" id="globalConfigBar">
+                <div class="global-config-group">
+                    <label for="tradingTypeSelect" class="config-label config-label-global">Trading Type</label>
+                    <select id="tradingTypeSelect" class="config-select-input">
+                        <option value="swing" selected>Swing Trading</option>
+                        <option value="positional">Positional</option>
+                        <option value="investing">Investing</option>
+                        <option value="intraday">Intraday</option>
+                        <option value="futures">Futures (F&O)</option>
+                        <option value="options">Options</option>
+                    </select>
+                </div>
+
+                <div class="global-config-group">
+                    <label for="availableCapitalInput" class="config-label config-label-global">Available Capital (₹)</label>
+                    <input type="number" id="availableCapitalInput" class="config-num-input config-num-global" value="100000" step="5000" min="1000">
+                </div>
+
+                <div class="global-config-group">
+                    <label for="maxLossInput" class="config-label config-label-global">Max Acceptable Loss (₹)</label>
+                    <input type="number" id="maxLossInput" class="config-num-input config-num-global" value="2000" step="500" min="100">
+                </div>
             </div>
 
             <!-- Two Interactive Strategy Choice Cards -->
@@ -366,6 +391,28 @@
                         <span>✓ Tightened Capital-Protection SL</span>
                         <span>✓ Debt Financing Cost Deduction</span>
                     </div>
+                </div>
+            </div>
+
+            <!-- Option A Term Selector Bar (Visible when Option A is selected) -->
+            <div class="term-config-bar" id="termConfigBar">
+                <span class="pills-label">Trade Term:</span>
+                <div class="term-pills-wrap">
+                    <button class="term-pill-btn" data-term="short">
+                        <span class="term-pill-icon">⚡</span>
+                        <span class="term-pill-text">Short-Term</span>
+                        <span class="term-pill-range">2–15 days</span>
+                    </button>
+                    <button class="term-pill-btn active" data-term="medium">
+                        <span class="term-pill-icon">📊</span>
+                        <span class="term-pill-text">Medium-Term</span>
+                        <span class="term-pill-range">5–45 days</span>
+                    </button>
+                    <button class="term-pill-btn" data-term="long">
+                        <span class="term-pill-icon">🏦</span>
+                        <span class="term-pill-text">Long-Term</span>
+                        <span class="term-pill-range">20–180 days</span>
+                    </button>
                 </div>
             </div>
 
