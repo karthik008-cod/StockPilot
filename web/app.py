@@ -1,5 +1,6 @@
 """Web application backend for StockPilot NIFTY 50 explorer."""
 
+import json
 import logging
 from pathlib import Path
 from typing import Optional
@@ -113,14 +114,14 @@ def get_stock_data(
     period: Optional[str] = Query("max", description="Timeframe period (1mo, 6mo, 1y, 3y, max)"),
     limit: Optional[int] = Query(None, description="Max number of records to return (None for all)"),
     benchmark: Optional[str] = Query("^NSEI", description="Benchmark to compare against (^NSEI, ^CRSLDX, ^CNX100)"),
+    refresh: bool = Query(False, description="Force re-fetch latest data from Yahoo Finance and update cache"),
 ):
     """Loads and returns date-wise OHLCV records for the selected stock from its very first trading day."""
     ticker_info = universe.get_stock(ticker) or {"symbol": ticker, "name": ticker, "sector": "Market", "indices": ["NIFTY 50"]}
 
-
     try:
-        # Always fetch complete history from day 1
-        df = loader.load_ohlcv(ticker, period="max")
+        # Load complete history; if refresh=True, force fetch latest from Yahoo Finance
+        df = loader.load_ohlcv(ticker, period="max", force_reload=refresh)
         if df.empty:
             raise HTTPException(status_code=404, detail=f"No data found for ticker {ticker}")
 
@@ -391,6 +392,78 @@ def check_stock_strategies(
         return res
     except Exception as e:
         logger.error("Strategy check error for %s: %s", ticker, e, exc_info=True)
+@app.post("/api/sync-stock")
+@app.get("/api/sync-stock")
+def sync_stock_data(
+    ticker: str = Query("RELIANCE.NS", description="Stock ticker symbol to sync"),
+):
+    """Fetches live latest market data for the ticker from Yahoo Finance, cleans, and updates cache."""
+    try:
+        df = loader.load_ohlcv(ticker, period="max", force_reload=True)
+        if df.empty:
+            raise HTTPException(status_code=404, detail=f"No data returned for {ticker} from market feed")
+        cleaned = cleaner.clean_ohlcv(df, ticker_name=ticker)
+        latest_row = cleaned.iloc[-1]
+        return {
+            "success": True,
+            "ticker": ticker,
+            "rows": len(cleaned),
+            "first_date": str(cleaned["Date"].min().strftime("%Y-%m-%d")),
+            "latest_date": str(latest_row["Date"].strftime("%Y-%m-%d")),
+            "latest_close": round(float(latest_row["Close"]), 2),
+            "message": f"Successfully updated {ticker} to {latest_row['Date'].strftime('%d-%b-%Y')}",
+        }
+    except Exception as e:
+        logger.error("Sync error for %s: %s", ticker, e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/market-stats")
+def get_market_stats():
+    """Returns universe coverage and cache freshness statistics."""
+    try:
+        cache_files = list(Path(loader.config.cache_dir).glob("*_ohlcv.parquet"))
+        stocks_50 = len(universe.get_stocks("NIFTY 50"))
+        stocks_100 = len(universe.get_stocks("NIFTY 100"))
+        stocks_200 = len(universe.get_stocks("NIFTY 200"))
+        stocks_500 = len(universe.get_stocks("NIFTY 500"))
+        all_stocks = len(universe.get_stocks("ALL"))
+
+        # Find newest cached date across meta files
+        meta_files = list(Path(loader.config.cache_dir).glob("*_ohlcv.meta.json"))
+        latest_dates = []
+        for mf in meta_files:
+            try:
+                with open(mf, "r", encoding="utf-8") as f:
+                    m_json = json.load(f)
+                    if m_json.get("last_date"):
+                        latest_dates.append(m_json["last_date"])
+            except Exception:
+                pass
+
+        newest_cached_date = max(latest_dates) if latest_dates else "N/A"
+
+        # Sector counts
+        sectors = universe.get_all_sectors()
+        sector_counts = {}
+        for sec in sectors:
+            sector_counts[sec] = len(universe.get_stocks(index_tier="ALL", sector=sec))
+
+        return {
+            "cached_tickers_count": len(cache_files),
+            "newest_cached_date": newest_cached_date,
+            "tiers": {
+                "NIFTY 50": stocks_50,
+                "NIFTY 100": stocks_100,
+                "NIFTY 200": stocks_200,
+                "NIFTY 500": stocks_500,
+                "ALL": all_stocks,
+            },
+            "sectors_count": len(sectors),
+            "sector_breakdown": sector_counts,
+        }
+    except Exception as e:
+        logger.error("Market stats error: %s", e)
         raise HTTPException(status_code=500, detail=str(e))
 
 

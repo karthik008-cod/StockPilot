@@ -121,6 +121,8 @@ async function init() {
     setupTradeStrategyListeners();
     initDeadlineDefaults();
     updateFlowUI();
+    initTabNavigation();
+    loadMarketStats();
 }
 
 /**
@@ -429,6 +431,11 @@ async function loadStocksForSector(tier, sector) {
             });
         }
 
+        const plannerStockSelect = document.getElementById("plannerStockSelect");
+        if (plannerStockSelect) {
+            plannerStockSelect.innerHTML = `<option value="" disabled selected>-- Select stock to plan trade (${stocksList.length}) --</option>` + stockSelect.innerHTML;
+        }
+
         if (step3Hint) {
             const displaySec = sector === "ALL" ? "All Sectors" : sector;
             step3Hint.textContent = `Choose a stock from ${tier} › ${displaySec} (${stocksList.length} stocks available).`;
@@ -469,7 +476,7 @@ function getStartDateForPeriod(period) {
     return null;
 }
 
-async function loadStockData(ticker) {
+async function loadStockData(ticker, forceRefresh = false) {
     showLoading();
     const startDate = getStartDateForPeriod(currentPeriod);
     const params = new URLSearchParams({
@@ -478,6 +485,9 @@ async function loadStockData(ticker) {
     });
     if (startDate) {
         params.append("start", startDate);
+    }
+    if (forceRefresh) {
+        params.append("refresh", "true");
     }
 
     try {
@@ -559,6 +569,18 @@ function updateSummary(data) {
     if (chartRangeLabel && allRecords.length > 0) {
         chartRangeLabel.textContent = `From ${allRecords[allRecords.length - 1].Date} to ${allRecords[0].Date} (${allRecords.length.toLocaleString()} observations)`;
     }
+
+    // Update Planner & Universe tab banners
+    const quickStockName = document.getElementById("quickStockName");
+    if (quickStockName) quickStockName.textContent = data.company_name || data.ticker;
+    const plannerTicker = document.getElementById("plannerTickerBadge");
+    if (plannerTicker) plannerTicker.textContent = (data.ticker || "").replace(".NS", "");
+    const plannerPrice = document.getElementById("plannerPriceBadge");
+    if (plannerPrice) plannerPrice.textContent = `₹${formatNumber(s.latest_close)}`;
+    const syncCurrentLbl = document.getElementById("syncCurrentTickerLbl");
+    if (syncCurrentLbl) syncCurrentLbl.textContent = (data.ticker || "").replace(".NS", "");
+    const plannerStockSelect = document.getElementById("plannerStockSelect");
+    if (plannerStockSelect && data.ticker) plannerStockSelect.value = data.ticker;
 
     if (data.company_details) {
         renderCompanyDetails(data.company_details);
@@ -890,7 +912,7 @@ function setupEventListeners() {
     // Refresh & Export
     if (refreshBtn) {
         refreshBtn.addEventListener("click", () => {
-            if (currentTicker) loadStockData(currentTicker);
+            if (currentTicker) handleRefreshStock(currentTicker);
         });
     }
     if (exportCsvBtn) {
@@ -1630,9 +1652,12 @@ function renderScannerCandidates(data) {
                     ${conditionsHtml}
                 </div>
 
-                <div class="candidate-card-footer">
-                    <button class="btn-inspect-candidate" onclick="selectCandidateStock('${c.symbol}')">
-                        Inspect in Workspace & Size Position →
+                <div class="candidate-card-footer" style="display: flex; gap: 8px; flex-wrap: wrap;">
+                    <button class="btn-inspect-candidate" style="flex: 1; min-width: 130px;" onclick="selectCandidateStock('${c.symbol}', 'analysis')">
+                        📊 Analyze Stock →
+                    </button>
+                    <button class="btn-inspect-candidate" style="flex: 1; min-width: 130px; background: rgba(59, 130, 246, 0.15); border-color: rgba(59, 130, 246, 0.4); color: #60A5FA;" onclick="selectCandidateStock('${c.symbol}', 'planner')">
+                        🎯 Plan Trade & Sizing →
                     </button>
                 </div>
             </div>
@@ -1640,7 +1665,7 @@ function renderScannerCandidates(data) {
     }).join("");
 }
 
-function selectCandidateStock(ticker) {
+function selectCandidateStock(ticker, targetTab = "analysis") {
     currentTicker = ticker;
     
     // Unlock and select in stockSelect
@@ -1657,9 +1682,29 @@ function selectCandidateStock(ticker) {
         if (!optExists) {
             const opt = document.createElement("option");
             opt.value = ticker;
-            opt.textContent = `${ticker.replace(".NS", "")} (Scanner Pick)`;
+            opt.textContent = `${ticker.replace(".NS", "")} (Selected Stock)`;
             opt.selected = true;
             stockSelect.appendChild(opt);
+        }
+    }
+
+    // Sync in plannerStockSelect
+    const plannerStockSelect = document.getElementById("plannerStockSelect");
+    if (plannerStockSelect) {
+        let optExists = false;
+        for (let i = 0; i < plannerStockSelect.options.length; i++) {
+            if (plannerStockSelect.options[i].value === ticker) {
+                plannerStockSelect.selectedIndex = i;
+                optExists = true;
+                break;
+            }
+        }
+        if (!optExists) {
+            const opt = document.createElement("option");
+            opt.value = ticker;
+            opt.textContent = `${ticker.replace(".NS", "")} (Selected Stock)`;
+            opt.selected = true;
+            plannerStockSelect.appendChild(opt);
         }
     }
 
@@ -1671,10 +1716,18 @@ function selectCandidateStock(ticker) {
     if (guidedFlowState) guidedFlowState.style.display = "none";
     if (stockWorkspace) {
         stockWorkspace.style.display = "flex";
-        stockWorkspace.scrollIntoView({ behavior: "smooth" });
     }
 
     loadStockData(ticker);
+
+    if (targetTab === "planner") {
+        switchTab("tabViewPlanner");
+    } else {
+        switchTab("tabViewAnalysis");
+        if (stockWorkspace) {
+            stockWorkspace.scrollIntoView({ behavior: "smooth" });
+        }
+    }
 }
 
 // Expose to window for inline onclick handlers
@@ -1801,6 +1854,301 @@ async function fetchStockStrategyCheck(ticker) {
         console.warn("Could not check stock strategy status:", err);
     }
 }
+
+// ==========================================================================
+// Modular Tab Navigation & Universe Live Sync Hub
+// ==========================================================================
+
+function initTabNavigation() {
+    const tabButtons = document.querySelectorAll(".nav-tab-btn");
+    tabButtons.forEach(btn => {
+        btn.addEventListener("click", () => {
+            const targetTab = btn.getAttribute("data-tab");
+            if (targetTab) {
+                switchTab(targetTab);
+            }
+        });
+    });
+
+    const btnSyncActiveStock = document.getElementById("btnSyncActiveStock");
+    if (btnSyncActiveStock) {
+        btnSyncActiveStock.addEventListener("click", () => {
+            if (currentTicker) {
+                handleRefreshStock(currentTicker);
+            } else {
+                showToast("Please select a stock first to sync live data.", "warning");
+            }
+        });
+    }
+
+    const btnSyncTopStocks = document.getElementById("btnSyncTopStocks");
+    if (btnSyncTopStocks) {
+        btnSyncTopStocks.addEventListener("click", syncTopLeaders);
+    }
+
+    const btnRefreshStats = document.getElementById("btnRefreshStats");
+    if (btnRefreshStats) {
+        btnRefreshStats.addEventListener("click", () => {
+            loadMarketStats();
+            showToast("Market stats and cache health refreshed", "info");
+        });
+    }
+
+    const quickRefreshLink = document.getElementById("quickRefreshLink");
+    if (quickRefreshLink) {
+        quickRefreshLink.addEventListener("click", () => {
+            if (currentTicker) handleRefreshStock(currentTicker);
+        });
+    }
+
+    const plannerSyncBtn = document.getElementById("plannerSyncBtn");
+    if (plannerSyncBtn) {
+        plannerSyncBtn.addEventListener("click", () => {
+            if (currentTicker) handleRefreshStock(currentTicker);
+        });
+    }
+
+    const plannerStockSelect = document.getElementById("plannerStockSelect");
+    if (plannerStockSelect) {
+        plannerStockSelect.addEventListener("change", (e) => {
+            const sym = e.target.value;
+            if (sym) {
+                selectCandidateStock(sym, "planner");
+            }
+        });
+    }
+}
+
+function switchTab(tabId) {
+    const tabButtons = document.querySelectorAll(".nav-tab-btn");
+    tabButtons.forEach(btn => {
+        if (btn.getAttribute("data-tab") === tabId) {
+            btn.classList.add("active");
+        } else {
+            btn.classList.remove("active");
+        }
+    });
+
+    const panes = document.querySelectorAll(".app-tab-pane");
+    panes.forEach(pane => {
+        if (pane.id === tabId) {
+            pane.classList.add("active");
+            pane.style.display = "block";
+        } else {
+            pane.classList.remove("active");
+            pane.style.display = "none";
+        }
+    });
+
+    if (tabId === "tabViewPlanner") {
+        const syncLbl = document.getElementById("plannerTickerBadge");
+        if (syncLbl && currentTicker) {
+            syncLbl.textContent = currentTicker.replace(".NS", "");
+        }
+        if (currentTicker) {
+            fetchStockStrategyCheck(currentTicker);
+            fetchTradeSetup(currentTicker);
+        }
+    }
+
+    if (tabId === "tabViewUniverse") {
+        loadMarketStats();
+    }
+}
+
+// Toast notification helper
+function showToast(message, type = "info") {
+    const toast = document.getElementById("toastNotification");
+    if (!toast) return;
+
+    const iconMap = {
+        success: "✓",
+        error: "✕",
+        warning: "⚠️",
+        info: "ℹ️"
+    };
+
+    const icon = iconMap[type] || "ℹ️";
+    toast.className = `toast-notification toast-${type} show`;
+    toast.innerHTML = `
+        <span class="toast-icon">${icon}</span>
+        <span class="toast-message">${message}</span>
+    `;
+
+    if (window._toastTimeout) clearTimeout(window._toastTimeout);
+    window._toastTimeout = setTimeout(() => {
+        toast.className = "toast-notification";
+    }, 4500);
+}
+
+// Console logger for Universe Tab
+function appendSyncLog(message, type = "info") {
+    const consoleBody = document.getElementById("syncLogBody");
+    if (!consoleBody) return;
+    const timeStr = new Date().toLocaleTimeString();
+    const line = document.createElement("div");
+    line.className = `console-line ${type}`;
+    line.textContent = `[${timeStr}] ${message}`;
+    consoleBody.appendChild(line);
+    consoleBody.scrollTop = consoleBody.scrollHeight;
+}
+
+// Live refresh stock handler: fetches latest candles from Yahoo Finance/NSE
+async function handleRefreshStock(ticker) {
+    if (!ticker) {
+        showToast("Please select a stock first to refresh data.", "warning");
+        return;
+    }
+
+    const cleanSym = ticker.replace(".NS", "");
+    const refreshBtn = document.getElementById("refreshBtn");
+    const plannerSyncBtn = document.getElementById("plannerSyncBtn");
+    const quickRefreshLink = document.getElementById("quickRefreshLink");
+    const btnSyncActiveStock = document.getElementById("btnSyncActiveStock");
+
+    const originalRefreshHtml = refreshBtn ? refreshBtn.innerHTML : "";
+    if (refreshBtn) {
+        refreshBtn.disabled = true;
+        refreshBtn.innerHTML = `<span>⏳</span> Syncing ${cleanSym}...`;
+    }
+    if (plannerSyncBtn) {
+        plannerSyncBtn.disabled = true;
+        plannerSyncBtn.textContent = "⏳ Syncing...";
+    }
+    if (quickRefreshLink) {
+        quickRefreshLink.disabled = true;
+        quickRefreshLink.textContent = "⏳ Syncing...";
+    }
+    if (btnSyncActiveStock) {
+        btnSyncActiveStock.disabled = true;
+    }
+
+    showToast(`Pulling latest trading candles for ${cleanSym} from Yahoo Finance / NSE...`, "info");
+    appendSyncLog(`Requesting live candles for ${ticker} from Yahoo Finance...`, "info");
+
+    try {
+        await loadStockData(ticker, true);
+        const latestDate = allRecords.length > 0 ? allRecords[0].Date : "Today";
+        showToast(`✓ ${cleanSym} updated with latest market candles (${latestDate})`, "success");
+        appendSyncLog(`✓ ${ticker} refreshed successfully! Latest candle: ${latestDate} (${allRecords.length} records).`, "success");
+        loadMarketStats();
+    } catch (err) {
+        console.error("Refresh failed:", err);
+        showToast(`Failed to refresh data for ${cleanSym}: ${err.message}`, "error");
+        appendSyncLog(`✕ Failed to refresh ${ticker}: ${err.message}`, "error");
+    } finally {
+        if (refreshBtn) {
+            refreshBtn.disabled = false;
+            refreshBtn.innerHTML = originalRefreshHtml || `<span>🔄</span> Refresh Data`;
+        }
+        if (plannerSyncBtn) {
+            plannerSyncBtn.disabled = false;
+            plannerSyncBtn.textContent = "🔄 Sync";
+        }
+        if (quickRefreshLink) {
+            quickRefreshLink.disabled = false;
+            quickRefreshLink.textContent = "🔄 Sync Latest";
+        }
+        if (btnSyncActiveStock) {
+            btnSyncActiveStock.disabled = false;
+        }
+    }
+}
+
+// Loads market stats and sector breakdown in Universe Tab
+async function loadMarketStats() {
+    try {
+        const res = await fetch("/api/market-stats");
+        if (!res.ok) return;
+        const data = await res.json();
+
+        const statsLatestDate = document.getElementById("statsLatestDate");
+        if (statsLatestDate) {
+            statsLatestDate.textContent = data.newest_cached_date || "Live Feed";
+        }
+
+        const statCachedTickers = document.getElementById("statCachedTickers");
+        if (statCachedTickers) {
+            statCachedTickers.textContent = `${data.cached_tickers_count} Tickers Cached`;
+        }
+
+        const universeSectorsGrid = document.getElementById("universeSectorsGrid");
+        if (universeSectorsGrid && data.sector_breakdown) {
+            universeSectorsGrid.innerHTML = Object.entries(data.sector_breakdown).map(([sec, count]) => `
+                <div class="sector-card" onclick="selectSectorFromUniverse('${sec.replace(/'/g, "\\'")}')">
+                    <span class="sector-card-name">${sec}</span>
+                    <span class="sector-card-count">${count} Stocks →</span>
+                </div>
+            `).join("");
+        }
+    } catch (err) {
+        console.warn("Could not load market stats:", err);
+    }
+}
+
+function selectSectorFromUniverse(secName) {
+    switchTab("tabViewAnalysis");
+    onSelectTier("ALL");
+    setTimeout(() => {
+        if (sectorSelect) {
+            sectorSelect.value = secName;
+            onSelectSector(secName);
+        }
+    }, 200);
+}
+
+// Batch sync top 10 NIFTY Leaders
+async function syncTopLeaders() {
+    const btn = document.getElementById("btnSyncTopStocks");
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = `<span class="btn-icon">⏳</span> Syncing Top 10...`;
+    }
+
+    const topLeaders = [
+        "RELIANCE.NS", "TCS.NS", "HDFCBANK.NS", "INFY.NS",
+        "ICICIBANK.NS", "BHARTIARTL.NS", "SBIN.NS", "ITC.NS",
+        "LT.NS", "HINDUNILVR.NS"
+    ];
+
+    showToast(`Starting live synchronization for ${topLeaders.length} NIFTY leaders...`, "info");
+    appendSyncLog(`Initiating batch sync for ${topLeaders.length} top index constituents...`, "info");
+
+    let count = 0;
+    for (const sym of topLeaders) {
+        try {
+            appendSyncLog(`Syncing ${sym}...`, "info");
+            const res = await fetch(`/api/sync-stock?ticker=${encodeURIComponent(sym)}`);
+            if (res.ok) {
+                const resData = await res.json();
+                count++;
+                appendSyncLog(`✓ ${sym} updated up to ${resData.latest_date} (Close: ₹${resData.latest_close})`, "success");
+            }
+        } catch (e) {
+            appendSyncLog(`✕ Could not sync ${sym}: ${e.message}`, "error");
+        }
+    }
+
+    showToast(`✓ Batch sync completed! ${count}/${topLeaders.length} stocks updated.`, "success");
+    appendSyncLog(`Batch sync finished: ${count}/${topLeaders.length} stocks up to date.`, "success");
+    loadMarketStats();
+
+    if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = `<span class="btn-icon">⚡</span> Sync Top 10 NIFTY Leaders`;
+    }
+
+    if (currentTicker && topLeaders.includes(currentTicker)) {
+        loadStockData(currentTicker);
+    }
+}
+
+// Expose helpers globally
+window.switchTab = switchTab;
+window.handleRefreshStock = handleRefreshStock;
+window.selectSectorFromUniverse = selectSectorFromUniverse;
+window.syncTopLeaders = syncTopLeaders;
+window.showToast = showToast;
 
 document.addEventListener("DOMContentLoaded", init);
 
