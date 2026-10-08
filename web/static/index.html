@@ -620,6 +620,10 @@
                         </p>
                     </div>
                     <div class="scanner-action-area">
+                        <button id="btnOpenCreateScanner" class="btn btn-secondary btn-create-scanner" title="Build a custom technical scanner with personalized indicators and timeframes">
+                            <span class="btn-icon">➕</span>
+                            <span>Create Custom Scanner</span>
+                        </button>
                         <button id="runScannerBtn" class="btn btn-scan">
                             <span class="scan-btn-icon">⚡</span>
                             <span id="scanBtnText">Scan Setups</span>
@@ -630,7 +634,7 @@
                 <!-- Strategy Filter Tabs -->
                 <div class="strategy-tabs-bar" id="strategyTabsBar">
                     <button class="strat-tab-btn active" data-strategy="ALL">
-                        <span class="tab-title">All 4 Setups</span>
+                        <span class="tab-title">All Setups</span>
                         <span class="tab-sub">Comprehensive Universe Scan</span>
                     </button>
                     <button class="strat-tab-btn" data-strategy="HTF_BULLISH_DEEP_DAILY_PULLBACK">
@@ -655,10 +659,27 @@
                 <div class="strategy-info-strip" id="strategyInfoStrip">
                     <div class="info-strip-icon">ℹ️</div>
                     <div class="info-strip-content">
-                        <span class="info-strip-label" id="currentStratName">All 4 Setups</span>
-                        <span class="info-strip-desc" id="currentStratDesc">Scanning NIFTY 500, NIFTY 200, and NIFTY 50 universes for all four multi-timeframe Wilder RSI setups.</span>
+                        <div class="info-strip-title-row">
+                            <span class="info-strip-label" id="currentStratName">All Setups</span>
+                            <span id="stratCustomBadge" class="strat-tag-custom" style="display: none;">Custom Scanner</span>
+                            <span id="stratModifiedBadge" class="strat-tag-modified" style="display: none;">Modified</span>
+                        </div>
+                        <span class="info-strip-desc" id="currentStratDesc">Scanning NIFTY 500, NIFTY 200, and NIFTY 50 universes for all defined technical setups.</span>
                     </div>
-                    <div class="info-strip-universe" id="currentStratUniverse">Universe: NIFTY 500/200/50</div>
+                    <div class="info-strip-right-group">
+                        <div class="info-strip-universe" id="currentStratUniverse">Universe: NIFTY 500/200/50</div>
+                        <div class="strategy-action-buttons-wrap">
+                            <button id="btnEditCurrentStrategy" class="btn btn-secondary btn-sm" title="Customize this strategy's rules, thresholds, and universe">
+                                <span>✏️ Customize</span>
+                            </button>
+                            <button id="btnResetCurrentStrategy" class="btn btn-secondary btn-sm" style="display: none;" title="Reset this strategy back to original defaults">
+                                <span>↺ Reset</span>
+                            </button>
+                            <button id="btnDeleteCurrentStrategy" class="btn btn-danger btn-sm" style="display: none;" title="Delete this custom scanner">
+                                <span>🗑️ Delete</span>
+                            </button>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Scanner Results Container -->
@@ -1048,6 +1069,92 @@
         </div> <!-- End of tabViewUniverse -->
 
     </div> <!-- End of app-container -->
+
+    <!-- Strategy Builder & Customizer Modal -->
+    <div id="strategyModal" class="modal-overlay" style="display: none;">
+        <div class="modal-dialog strategy-modal-card">
+            <div class="modal-header">
+                <div class="modal-title-group">
+                    <span class="modal-pretitle" id="strategyModalPretitle">STRATEGY BUILDER</span>
+                    <h3 class="modal-title" id="strategyModalTitle">Create Custom Technical Scanner</h3>
+                </div>
+                <button class="modal-close-btn" id="btnCloseStrategyModal" title="Close modal">✕</button>
+            </div>
+
+            <div class="modal-body">
+                <form id="strategyForm" onsubmit="event.preventDefault();">
+                    <input type="hidden" id="modalStrategyId" value="">
+
+                    <!-- Basic Metadata -->
+                    <div class="modal-form-grid">
+                        <div class="form-group">
+                            <label class="form-label" for="inputStrategyName">Scanner Name <span class="req">*</span></label>
+                            <input type="text" id="inputStrategyName" class="form-input" placeholder="e.g. 52W High Breakout with RSI Momentum" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="selectStrategyUniverse">Target Universe <span class="req">*</span></label>
+                            <select id="selectStrategyUniverse" class="form-select">
+                                <option value="NIFTY 50">NIFTY 50 (Blue Chips)</option>
+                                <option value="NIFTY 100">NIFTY 100 (Large Cap)</option>
+                                <option value="NIFTY 200">NIFTY 200 (Large & Mid Cap)</option>
+                                <option value="NIFTY 500" selected>NIFTY 500 (Broad Market)</option>
+                                <option value="ALL">ALL (Entire Indian Market)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-group" style="margin-top: 14px;">
+                        <label class="form-label" for="inputStrategyDesc">Strategy Description & Trading Hypothesis</label>
+                        <textarea id="inputStrategyDesc" class="form-textarea" rows="2" placeholder="Explain the rationale, setup conditions, and trading idea..."></textarea>
+                    </div>
+
+                    <!-- Quick Templates -->
+                    <div class="strategy-templates-bar">
+                        <span class="templates-lbl">Quick Templates:</span>
+                        <button type="button" class="btn-preset-pill" onclick="applyStrategyTemplate('RSI_MOMENTUM')">⚡ Strong RSI Momentum</button>
+                        <button type="button" class="btn-preset-pill" onclick="applyStrategyTemplate('EMA_PULLBACK')">📉 20 EMA Pullback</button>
+                        <button type="button" class="btn-preset-pill" onclick="applyStrategyTemplate('ATH_BREAKOUT')">🚀 52W High Breakout</button>
+                        <button type="button" class="btn-preset-pill" onclick="applyStrategyTemplate('RSI_OVERSOLD')">🛡️ Oversold Reversal</button>
+                    </div>
+
+                    <!-- Conditions Builder -->
+                    <div class="conditions-builder-section">
+                        <div class="conditions-header-row">
+                            <div>
+                                <h4 class="conditions-section-title">Entry Setup Conditions</h4>
+                                <p class="conditions-section-sub">A stock must satisfy <strong>all</strong> conditions below to generate a signal.</p>
+                            </div>
+                            <button type="button" id="btnAddConditionRow" class="btn btn-secondary btn-sm">
+                                <span>➕ Add Rule</span>
+                            </button>
+                        </div>
+
+                        <!-- Column Headers for the builder -->
+                        <div class="conditions-table-header">
+                            <span class="th-col col-tf">Timeframe</span>
+                            <span class="th-col col-ind">Indicator</span>
+                            <span class="th-col col-per">Period</span>
+                            <span class="th-col col-op">Operator</span>
+                            <span class="th-col col-val">Threshold</span>
+                            <span class="th-col col-shift">Candle</span>
+                            <span class="th-col col-act">Action</span>
+                        </div>
+
+                        <div id="conditionsListContainer" class="conditions-list-wrap">
+                            <!-- Dynamic rows injected here -->
+                        </div>
+                    </div>
+                </form>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" id="btnCancelStrategyModal" class="btn btn-secondary">Cancel</button>
+                <button type="button" id="btnSaveStrategyModal" class="btn btn-primary">
+                    <span id="btnSaveStrategyText">Save & Activate Scanner</span>
+                </button>
+            </div>
+        </div>
+    </div>
 
     <script src="/static/app.js"></script>
 </body>

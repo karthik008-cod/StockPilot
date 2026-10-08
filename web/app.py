@@ -3,10 +3,10 @@
 import json
 import logging
 from pathlib import Path
-from typing import Optional
+from typing import Any, Dict, Optional
 import numpy as np
 import pandas as pd
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import Body, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -22,6 +22,10 @@ from stockpilot.strategy import (
     STRATEGY_REGISTRY,
     list_strategies,
     get_strategy,
+    create_custom_strategy,
+    update_strategy,
+    delete_strategy,
+    reset_strategy,
 )
 
 
@@ -322,11 +326,78 @@ scanner_engine = StrategyScannerEngine(loader=loader, cleaner=cleaner)
 
 @app.get("/api/strategies")
 def get_strategies():
-    """Returns declarative metadata and conditions for all 4 defined user strategies."""
+    """Returns declarative metadata and conditions for all defined user strategies."""
     return {
         "count": len(STRATEGY_REGISTRY),
         "strategies": list_strategies(),
     }
+
+
+@app.post("/api/strategies")
+def create_strategy_endpoint(payload: Dict[str, Any] = Body(...)):
+    """Creates a new custom technical scanner and persists it to disk."""
+    try:
+        strat = create_custom_strategy(payload)
+        return {
+            "success": True,
+            "message": f"Successfully created scanner '{strat.name}' ({strat.strategy_id})",
+            "strategy": strat.to_dict(),
+        }
+    except Exception as e:
+        logger.error("Error creating custom strategy: %s", e)
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.put("/api/strategies/{strategy_id}")
+def update_strategy_endpoint(strategy_id: str, payload: Dict[str, Any] = Body(...)):
+    """Updates/customizes an existing scanner strategy (built-in or custom)."""
+    try:
+        strat = update_strategy(strategy_id, payload)
+        return {
+            "success": True,
+            "message": f"Successfully updated scanner '{strat.name}'",
+            "strategy": strat.to_dict(),
+        }
+    except KeyError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error("Error updating strategy %s: %s", strategy_id, e)
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.delete("/api/strategies/{strategy_id}")
+def delete_strategy_endpoint(strategy_id: str):
+    """Deletes a custom scanner strategy."""
+    try:
+        delete_strategy(strategy_id)
+        return {
+            "success": True,
+            "message": f"Deleted custom strategy '{strategy_id}'",
+        }
+    except KeyError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error("Error deleting strategy %s: %s", strategy_id, e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/strategies/{strategy_id}/reset")
+def reset_strategy_endpoint(strategy_id: str):
+    """Resets a customized built-in strategy back to its default specification."""
+    try:
+        strat = reset_strategy(strategy_id)
+        return {
+            "success": True,
+            "message": f"Reset scanner '{strat.name}' back to default parameters",
+            "strategy": strat.to_dict(),
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error("Error resetting strategy %s: %s", strategy_id, e)
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/api/scan")

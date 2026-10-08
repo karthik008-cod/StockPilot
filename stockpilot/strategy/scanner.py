@@ -14,6 +14,7 @@ from stockpilot.data.loader import DataLoader
 from stockpilot.universe import universe
 from stockpilot.trade.planner import TradePlanner
 from stockpilot.strategy.models import (
+    Condition,
     ConditionEvidence,
     Operator,
     ScanCandidate,
@@ -21,7 +22,11 @@ from stockpilot.strategy.models import (
     Timeframe,
 )
 from stockpilot.strategy.registry import STRATEGY_REGISTRY, get_strategy
-from stockpilot.strategy.resampler import extract_multi_timeframe_indicators
+from stockpilot.strategy.resampler import (
+    compute_wilder_rsi,
+    extract_multi_timeframe_indicators,
+    resample_to_timeframe,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +43,53 @@ class StrategyScannerEngine:
         self.loader = loader or DataLoader()
         self.cleaner = cleaner or DataCleaner()
         self.planner = planner or TradePlanner()
+
+    @staticmethod
+    def _evaluate_condition_value(
+        tf_df: pd.DataFrame,
+        cond: Condition,
+    ) -> tuple[Optional[float], Optional[float]]:
+        """Computes current and previous indicator values for any technical indicator."""
+        if tf_df.empty or len(tf_df) < 2:
+            return None, None
+
+        ind = str(cond.indicator).upper().strip()
+        period = max(1, int(cond.period))
+
+        try:
+            if ind == "RSI":
+                series = compute_wilder_rsi(tf_df["Close"], period=period)
+            elif ind == "SMA":
+                series = tf_df["Close"].rolling(window=period, min_periods=max(2, period // 2)).mean()
+            elif ind == "EMA":
+                series = tf_df["Close"].ewm(span=period, adjust=False).mean()
+            elif ind in ["CLOSE", "PRICE"]:
+                series = tf_df["Close"]
+            elif ind == "VOLUME":
+                series = tf_df["Volume"].astype(float)
+            elif ind == "RVOL":
+                vol_sma = tf_df["Volume"].rolling(window=period, min_periods=min(5, len(tf_df))).mean()
+                series = tf_df["Volume"] / (vol_sma + 1e-10)
+            elif ind in ["ATH_PCT", "52W_HIGH_PCT"]:
+                high_window = tf_df["High"].rolling(window=min(len(tf_df), 252), min_periods=min(10, len(tf_df))).max()
+                series = (tf_df["Close"] / (high_window + 1e-10)) * 100.0
+            elif ind in tf_df.columns:
+                series = tf_df[ind].astype(float)
+            else:
+                series = compute_wilder_rsi(tf_df["Close"], period=period)
+
+            # Compute index with shift
+            shift = max(0, int(cond.shift))
+            curr_idx = -1 - shift
+            prev_idx = curr_idx - 1
+
+            curr_val = float(series.iloc[curr_idx]) if abs(curr_idx) <= len(series) and not pd.isna(series.iloc[curr_idx]) else None
+            prev_val = float(series.iloc[prev_idx]) if abs(prev_idx) <= len(series) and not pd.isna(series.iloc[prev_idx]) else None
+
+            return curr_val, prev_val
+        except Exception as e:
+            logger.warning("Error evaluating condition %s: %s", cond, e)
+            return None, None
 
     def evaluate_dataframe(
         self,
@@ -94,20 +146,28 @@ class StrategyScannerEngine:
 
         evidence_list: List[ConditionEvidence] = []
         all_passed = True
+        resampled_cache: Dict[Timeframe, pd.DataFrame] = {}
 
         for cond in strategy.conditions:
             val: Optional[float] = None
             prev_val: Optional[float] = None
 
-            if cond.timeframe == Timeframe.DAILY:
-                val = mtf.get("daily_rsi_14") if cond.shift == 0 else mtf.get("prev_daily_rsi_14")
-                prev_val = mtf.get("prev_daily_rsi_14")
-            elif cond.timeframe == Timeframe.WEEKLY:
-                val = mtf.get("weekly_rsi_14") if cond.shift == 0 else mtf.get("prev_weekly_rsi_14")
-                prev_val = mtf.get("prev_weekly_rsi_14")
-            elif cond.timeframe == Timeframe.MONTHLY:
-                val = mtf.get("monthly_rsi_14") if cond.shift == 0 else mtf.get("prev_monthly_rsi_14")
-                prev_val = mtf.get("prev_monthly_rsi_14")
+            # Fast path for standard RSI(14)
+            if str(cond.indicator).upper() == "RSI" and int(cond.period) == 14:
+                if cond.timeframe == Timeframe.DAILY:
+                    val = mtf.get("daily_rsi_14") if cond.shift == 0 else mtf.get("prev_daily_rsi_14")
+                    prev_val = mtf.get("prev_daily_rsi_14")
+                elif cond.timeframe == Timeframe.WEEKLY:
+                    val = mtf.get("weekly_rsi_14") if cond.shift == 0 else mtf.get("prev_weekly_rsi_14")
+                    prev_val = mtf.get("prev_weekly_rsi_14")
+                elif cond.timeframe == Timeframe.MONTHLY:
+                    val = mtf.get("monthly_rsi_14") if cond.shift == 0 else mtf.get("prev_monthly_rsi_14")
+                    prev_val = mtf.get("prev_monthly_rsi_14")
+            else:
+                # Dynamic indicator evaluation on resampled timeframe candle series
+                if cond.timeframe not in resampled_cache:
+                    resampled_cache[cond.timeframe] = resample_to_timeframe(df, cond.timeframe, as_of_date=as_of_date)
+                val, prev_val = self._evaluate_condition_value(resampled_cache[cond.timeframe], cond)
 
             passed, detail = cond.evaluate(val, prev_val)
             if not passed:

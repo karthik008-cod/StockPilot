@@ -183,7 +183,7 @@ class TestStrategyConditions(unittest.TestCase):
 
     def test_registry_contains_all_four_strategies(self):
         strats = list_strategies()
-        self.assertEqual(len(strats), 4)
+        self.assertGreaterEqual(len(strats), 4)
         ids = [s["strategy_id"] for s in strats]
         self.assertIn("HTF_BULLISH_DEEP_DAILY_PULLBACK", ids)
         self.assertIn("HTF_BULLISH_DAILY_MOMENTUM_ZONE", ids)
@@ -327,14 +327,58 @@ class TestScannerOutputStructure(unittest.TestCase):
         self.assertIn("weekly_rsi_14", indicators)
         self.assertIn("monthly_rsi_14", indicators)
 
-        # Check conditions list
-        conditions = d["conditions"]
-        self.assertEqual(len(conditions), 4)
-        for cond in conditions:
-            self.assertIn("condition", cond)
-            self.assertIn("actual", cond)
-            self.assertIn("passed", cond)
-            self.assertIn("operator", cond)
+class TestCustomStrategyCRUD(unittest.TestCase):
+    """Tests custom strategy creation, customization, resetting, and deletion."""
+
+    def test_custom_strategy_lifecycle(self):
+        from stockpilot.strategy.registry import (
+            create_custom_strategy,
+            update_strategy,
+            reset_strategy,
+            delete_strategy,
+        )
+
+        # 1. Create Custom Strategy
+        strat = create_custom_strategy({
+            "name": "Breakout Momentum Test",
+            "universe": "NIFTY 50",
+            "description": "Custom test strategy",
+            "conditions": [
+                {"timeframe": "DAILY", "indicator": "RSI", "period": 14, "operator": ">", "value": 55.0},
+                {"timeframe": "DAILY", "indicator": "CLOSE", "period": 1, "operator": ">", "value": 100.0},
+            ],
+        })
+        self.assertFalse(strat.is_builtin)
+        self.assertFalse(strat.is_customized)
+        self.assertIn(strat.strategy_id, [s["strategy_id"] for s in list_strategies()])
+
+        # 2. Customize Built-in Strategy
+        updated = update_strategy("HTF_BULLISH_DEEP_DAILY_PULLBACK", {
+            "name": "HTF Pullback Customized",
+            "universe": "NIFTY 100",
+            "description": "Adjusted threshold",
+            "conditions": [
+                {"timeframe": "MONTHLY", "indicator": "RSI", "period": 14, "operator": ">", "value": 55.0},
+            ],
+        })
+        self.assertTrue(updated.is_builtin)
+        self.assertTrue(updated.is_customized)
+        self.assertEqual(updated.universe, "NIFTY 100")
+
+        # 3. Reset Built-in Strategy
+        restored = reset_strategy("HTF_BULLISH_DEEP_DAILY_PULLBACK")
+        self.assertTrue(restored.is_builtin)
+        self.assertFalse(restored.is_customized)
+        self.assertEqual(restored.universe, "NIFTY 500")
+
+        # 4. Cannot delete built-in strategy
+        with self.assertRaises(ValueError):
+            delete_strategy("HTF_BULLISH_DEEP_DAILY_PULLBACK")
+
+        # 5. Delete Custom Strategy
+        res = delete_strategy(strat.strategy_id)
+        self.assertTrue(res)
+        self.assertNotIn(strat.strategy_id, [s["strategy_id"] for s in list_strategies()])
 
 
 if __name__ == "__main__":

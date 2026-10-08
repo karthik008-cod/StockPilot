@@ -1488,40 +1488,131 @@ const monthlyStatusNote = document.getElementById("monthlyStatusNote");
 
 const strategyCheckDetails = document.getElementById("strategyCheckDetails");
 
+// ─── Initialize Strategy Recommendation Scanner & Custom Builder ───────────
 async function initStrategyScanner() {
-    try {
-        const res = await fetch("/api/strategies");
-        if (res.ok) {
-            const data = await res.json();
-            registeredStrategies = data.strategies || [];
-        }
-    } catch (e) {
-        console.warn("Could not fetch strategies metadata:", e);
-    }
-
-    // Tab buttons
-    if (strategyTabsBar) {
-        strategyTabsBar.querySelectorAll(".strat-tab-btn").forEach(btn => {
-            btn.addEventListener("click", () => {
-                strategyTabsBar.querySelectorAll(".strat-tab-btn").forEach(b => b.classList.remove("active"));
-                btn.classList.add("active");
-                activeScannerStrategyId = btn.dataset.strategy;
-                updateScannerInfoStrip(activeScannerStrategyId);
-            });
-        });
-    }
+    await fetchStrategiesList();
 
     // Run Scanner Button
     if (runScannerBtn) {
         runScannerBtn.addEventListener("click", runMarketScanner);
     }
+
+    // Modal Triggers
+    const btnOpenCreate = document.getElementById("btnOpenCreateScanner");
+    if (btnOpenCreate) {
+        btnOpenCreate.addEventListener("click", () => openStrategyModal(null));
+    }
+
+    const btnEditCurrent = document.getElementById("btnEditCurrentStrategy");
+    if (btnEditCurrent) {
+        btnEditCurrent.addEventListener("click", () => {
+            if (activeScannerStrategyId && activeScannerStrategyId !== "ALL") {
+                openStrategyModal(activeScannerStrategyId);
+            }
+        });
+    }
+
+    const btnResetCurrent = document.getElementById("btnResetCurrentStrategy");
+    if (btnResetCurrent) {
+        btnResetCurrent.addEventListener("click", () => {
+            if (activeScannerStrategyId && activeScannerStrategyId !== "ALL") {
+                handleResetStrategy(activeScannerStrategyId);
+            }
+        });
+    }
+
+    const btnDeleteCurrent = document.getElementById("btnDeleteCurrentStrategy");
+    if (btnDeleteCurrent) {
+        btnDeleteCurrent.addEventListener("click", () => {
+            if (activeScannerStrategyId && activeScannerStrategyId !== "ALL") {
+                handleDeleteStrategy(activeScannerStrategyId);
+            }
+        });
+    }
+
+    // Modal Close & Actions
+    const btnCloseModal = document.getElementById("btnCloseStrategyModal");
+    if (btnCloseModal) btnCloseModal.addEventListener("click", closeStrategyModal);
+
+    const btnCancelModal = document.getElementById("btnCancelStrategyModal");
+    if (btnCancelModal) btnCancelModal.addEventListener("click", closeStrategyModal);
+
+    const btnSaveModal = document.getElementById("btnSaveStrategyModal");
+    if (btnSaveModal) btnSaveModal.addEventListener("click", saveStrategyFromModal);
+
+    const btnAddCond = document.getElementById("btnAddConditionRow");
+    if (btnAddCond) btnAddCond.addEventListener("click", () => addConditionRow());
+}
+
+async function fetchStrategiesList() {
+    try {
+        const res = await fetch("/api/strategies");
+        if (res.ok) {
+            const data = await res.json();
+            registeredStrategies = data.strategies || [];
+            renderStrategyTabs();
+            updateScannerInfoStrip(activeScannerStrategyId);
+        }
+    } catch (e) {
+        console.warn("Could not fetch strategies metadata:", e);
+    }
+}
+
+function renderStrategyTabs() {
+    if (!strategyTabsBar) return;
+
+    let html = `
+        <button class="strat-tab-btn ${activeScannerStrategyId === "ALL" ? "active" : ""}" data-strategy="ALL">
+            <span class="tab-title">All Setups (${registeredStrategies.length})</span>
+            <span class="tab-sub">Comprehensive Market Scan</span>
+        </button>
+    `;
+
+    registeredStrategies.forEach((strat, index) => {
+        const isActive = activeScannerStrategyId === strat.strategy_id;
+        const tagHtml = strat.is_builtin
+            ? (strat.is_customized ? `<span class="strat-tag-modified" style="margin-left:4px;">Modified</span>` : "")
+            : `<span class="strat-tag-custom" style="margin-left:4px;">Custom</span>`;
+        
+        const titleText = strat.is_builtin ? `Strategy ${index + 1}` : strat.name;
+
+        html += `
+            <button class="strat-tab-btn ${isActive ? "active" : ""}" data-strategy="${strat.strategy_id}">
+                <span class="tab-title">${titleText} ${tagHtml}</span>
+                <span class="tab-sub">${strat.name} (${strat.universe})</span>
+            </button>
+        `;
+    });
+
+    strategyTabsBar.innerHTML = html;
+
+    // Reattach click events
+    strategyTabsBar.querySelectorAll(".strat-tab-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+            strategyTabsBar.querySelectorAll(".strat-tab-btn").forEach(b => b.classList.remove("active"));
+            btn.classList.add("active");
+            activeScannerStrategyId = btn.dataset.strategy;
+            updateScannerInfoStrip(activeScannerStrategyId);
+        });
+    });
 }
 
 function updateScannerInfoStrip(stratId) {
+    const editBtn = document.getElementById("btnEditCurrentStrategy");
+    const resetBtn = document.getElementById("btnResetCurrentStrategy");
+    const deleteBtn = document.getElementById("btnDeleteCurrentStrategy");
+    const customBadge = document.getElementById("stratCustomBadge");
+    const modifiedBadge = document.getElementById("stratModifiedBadge");
+
     if (stratId === "ALL") {
-        if (currentStratName) currentStratName.textContent = "All 4 Setups";
-        if (currentStratDesc) currentStratDesc.textContent = "Scanning NIFTY 500, NIFTY 200, and NIFTY 50 universes for all four multi-timeframe Wilder RSI setups.";
-        if (currentStratUniverse) currentStratUniverse.textContent = "Universe: NIFTY 500 / 200 / 50";
+        if (currentStratName) currentStratName.textContent = `All Active Setups (${registeredStrategies.length})`;
+        if (currentStratDesc) currentStratDesc.textContent = "Scanning the market across all active built-in and user-customized strategies simultaneously.";
+        if (currentStratUniverse) currentStratUniverse.textContent = "Universe: All Configured";
+        if (editBtn) editBtn.style.display = "none";
+        if (resetBtn) resetBtn.style.display = "none";
+        if (deleteBtn) deleteBtn.style.display = "none";
+        if (customBadge) customBadge.style.display = "none";
+        if (modifiedBadge) modifiedBadge.style.display = "none";
         return;
     }
 
@@ -1530,6 +1621,320 @@ function updateScannerInfoStrip(stratId) {
         if (currentStratName) currentStratName.textContent = strat.name;
         if (currentStratDesc) currentStratDesc.textContent = strat.purpose || strat.description;
         if (currentStratUniverse) currentStratUniverse.textContent = `Universe: ${strat.universe}`;
+
+        if (editBtn) editBtn.style.display = "inline-flex";
+        if (customBadge) customBadge.style.display = strat.is_builtin ? "none" : "inline-block";
+        if (modifiedBadge) modifiedBadge.style.display = strat.is_customized ? "inline-block" : "none";
+
+        if (resetBtn) resetBtn.style.display = (strat.is_builtin && strat.is_customized) ? "inline-flex" : "none";
+        if (deleteBtn) deleteBtn.style.display = (!strat.is_builtin) ? "inline-flex" : "none";
+    }
+}
+
+// ─── Strategy Modal & Builder Functions ────────────────────────────────────
+
+function openStrategyModal(strategyId = null) {
+    const modal = document.getElementById("strategyModal");
+    if (!modal) return;
+
+    const modalTitle = document.getElementById("strategyModalTitle");
+    const modalPretitle = document.getElementById("strategyModalPretitle");
+    const modalStrategyId = document.getElementById("modalStrategyId");
+    const inputName = document.getElementById("inputStrategyName");
+    const selectUniverse = document.getElementById("selectStrategyUniverse");
+    const inputDesc = document.getElementById("inputStrategyDesc");
+    const btnSaveText = document.getElementById("btnSaveStrategyText");
+    const container = document.getElementById("conditionsListContainer");
+
+    if (container) container.innerHTML = "";
+
+    if (strategyId) {
+        const strat = registeredStrategies.find(s => s.strategy_id === strategyId);
+        if (!strat) return;
+
+        if (modalPretitle) modalPretitle.textContent = strat.is_builtin ? "CUSTOMIZE BUILT-IN SCANNER" : "EDIT CUSTOM SCANNER";
+        if (modalTitle) modalTitle.textContent = `Customize: ${strat.name}`;
+        if (modalStrategyId) modalStrategyId.value = strat.strategy_id;
+        if (inputName) inputName.value = strat.name;
+        if (selectUniverse) selectUniverse.value = strat.universe || "NIFTY 500";
+        if (inputDesc) inputDesc.value = strat.purpose || strat.description || "";
+        if (btnSaveText) btnSaveText.textContent = "Save Changes & Update Scanner";
+
+        // Populate existing conditions
+        (strat.conditions || []).forEach(c => addConditionRow(c));
+    } else {
+        if (modalPretitle) modalPretitle.textContent = "CREATE SCANNER";
+        if (modalTitle) modalTitle.textContent = "Create Custom Technical Scanner";
+        if (modalStrategyId) modalStrategyId.value = "";
+        if (inputName) inputName.value = "";
+        if (selectUniverse) selectUniverse.value = "NIFTY 500";
+        if (inputDesc) inputDesc.value = "";
+        if (btnSaveText) btnSaveText.textContent = "Save & Activate Scanner";
+
+        // Default with 2 standard condition rows
+        addConditionRow({ timeframe: "DAILY", indicator: "RSI", period: 14, operator: ">", value: 55.0, shift: 0 });
+        addConditionRow({ timeframe: "DAILY", indicator: "CLOSE", period: 1, operator: ">", value: 100.0, shift: 0 });
+    }
+
+    modal.style.display = "flex";
+}
+
+function closeStrategyModal() {
+    const modal = document.getElementById("strategyModal");
+    if (modal) modal.style.display = "none";
+}
+
+function addConditionRow(c = null) {
+    const container = document.getElementById("conditionsListContainer");
+    if (!container) return;
+
+    const row = document.createElement("div");
+    row.className = "condition-row-card";
+
+    const tf = c ? c.timeframe : "DAILY";
+    const ind = c ? (c.indicator || "RSI").toUpperCase() : "RSI";
+    const per = c ? (c.period || 14) : 14;
+    const op = c ? (c.operator || ">").toLowerCase() : ">";
+    const val = c ? c.value : 60.0;
+    const valHigh = c && c.value_high !== null && c.value_high !== undefined ? c.value_high : 70.0;
+    const shift = c ? (c.shift || 0) : 0;
+
+    const isBetween = op === "between";
+
+    row.innerHTML = `
+        <select class="cond-select cond-tf">
+            <option value="DAILY" ${tf === "DAILY" ? "selected" : ""}>Daily</option>
+            <option value="WEEKLY" ${tf === "WEEKLY" ? "selected" : ""}>Weekly</option>
+            <option value="MONTHLY" ${tf === "MONTHLY" ? "selected" : ""}>Monthly</option>
+        </select>
+        <select class="cond-select cond-ind" onchange="onCondIndicatorChange(this)">
+            <option value="RSI" ${ind === "RSI" ? "selected" : ""}>RSI (Wilder)</option>
+            <option value="SMA" ${ind === "SMA" ? "selected" : ""}>SMA</option>
+            <option value="EMA" ${ind === "EMA" ? "selected" : ""}>EMA</option>
+            <option value="CLOSE" ${ind === "CLOSE" ? "selected" : ""}>Close Price</option>
+            <option value="VOLUME" ${ind === "VOLUME" ? "selected" : ""}>Volume</option>
+            <option value="RVOL" ${ind === "RVOL" ? "selected" : ""}>RVOL (Rel Vol)</option>
+            <option value="ATH_PCT" ${ind === "ATH_PCT" || ind === "52W_HIGH_PCT" ? "selected" : ""}>52W High %</option>
+        </select>
+        <input type="number" class="cond-input cond-per" value="${per}" min="1" max="500" title="Period / Window">
+        <select class="cond-select cond-op" onchange="onCondOperatorChange(this)">
+            <option value=">" ${op === ">" ? "selected" : ""}>&gt; (Greater)</option>
+            <option value="<" ${op === "<" ? "selected" : ""}>&lt; (Less)</option>
+            <option value=">=" ${op === ">=" ? "selected" : ""}>&gt;= (GTE)</option>
+            <option value="<=" ${op === "<=" ? "selected" : ""}>&lt;= (LTE)</option>
+            <option value="between" ${op === "between" ? "selected" : ""}>Between</option>
+            <option value="cross_above" ${op === "cross_above" ? "selected" : ""}>Cross Above</option>
+            <option value="cross_below" ${op === "cross_below" ? "selected" : ""}>Cross Below</option>
+        </select>
+        <div class="cond-val-wrap">
+            <input type="number" step="any" class="cond-input cond-val" value="${val}" placeholder="Value">
+            <span class="cond-val-sep" style="${isBetween ? "" : "display:none;"}">to</span>
+            <input type="number" step="any" class="cond-input cond-val-high" value="${valHigh}" placeholder="High" style="${isBetween ? "" : "display:none;"}">
+        </div>
+        <select class="cond-select cond-shift">
+            <option value="0" ${shift === 0 ? "selected" : ""}>Current</option>
+            <option value="1" ${shift === 1 ? "selected" : ""}>Previous</option>
+        </select>
+        <button type="button" class="btn-remove-cond" onclick="this.closest('.condition-row-card').remove()" title="Remove rule">✕</button>
+    `;
+
+    container.appendChild(row);
+}
+
+function onCondIndicatorChange(sel) {
+    const row = sel.closest(".condition-row-card");
+    if (!row) return;
+    const perInput = row.querySelector(".cond-per");
+    const valInput = row.querySelector(".cond-val");
+    const ind = sel.value;
+
+    if (ind === "RSI") {
+        if (perInput) perInput.value = "14";
+        if (valInput) valInput.value = "60";
+    } else if (ind === "SMA" || ind === "EMA") {
+        if (perInput) perInput.value = "20";
+        if (valInput) valInput.value = "100";
+    } else if (ind === "RVOL") {
+        if (perInput) perInput.value = "20";
+        if (valInput) valInput.value = "1.5";
+    } else if (ind === "ATH_PCT") {
+        if (perInput) perInput.value = "252";
+        if (valInput) valInput.value = "95";
+    } else if (ind === "CLOSE" || ind === "VOLUME") {
+        if (perInput) perInput.value = "1";
+    }
+}
+
+function onCondOperatorChange(sel) {
+    const row = sel.closest(".condition-row-card");
+    if (!row) return;
+    const isBetween = sel.value === "between";
+    const sep = row.querySelector(".cond-val-sep");
+    const highInput = row.querySelector(".cond-val-high");
+    if (sep) sep.style.display = isBetween ? "inline" : "none";
+    if (highInput) highInput.style.display = isBetween ? "inline-block" : "none";
+}
+
+function applyStrategyTemplate(templateKey) {
+    const container = document.getElementById("conditionsListContainer");
+    if (!container) return;
+    container.innerHTML = "";
+
+    const nameInput = document.getElementById("inputStrategyName");
+    const descInput = document.getElementById("inputStrategyDesc");
+
+    if (templateKey === "RSI_MOMENTUM") {
+        if (nameInput) nameInput.value = "Strong MTF RSI Momentum";
+        if (descInput) descInput.value = "Multi-timeframe momentum alignment: Monthly RSI > 60, Weekly RSI > 60, and Daily RSI > 58.";
+        addConditionRow({ timeframe: "MONTHLY", indicator: "RSI", period: 14, operator: ">", value: 60.0 });
+        addConditionRow({ timeframe: "WEEKLY", indicator: "RSI", period: 14, operator: ">", value: 60.0 });
+        addConditionRow({ timeframe: "DAILY", indicator: "RSI", period: 14, operator: ">", value: 58.0 });
+    } else if (templateKey === "EMA_PULLBACK") {
+        if (nameInput) nameInput.value = "20 EMA Trend Pullback";
+        if (descInput) descInput.value = "Higher-timeframe bullish trend where price has pulled back near the Daily 20 EMA.";
+        addConditionRow({ timeframe: "WEEKLY", indicator: "RSI", period: 14, operator: ">", value: 58.0 });
+        addConditionRow({ timeframe: "DAILY", indicator: "CLOSE", period: 1, operator: ">", value: 50.0 });
+        addConditionRow({ timeframe: "DAILY", indicator: "RSI", period: 14, operator: "<", value: 48.0 });
+    } else if (templateKey === "ATH_BREAKOUT") {
+        if (nameInput) nameInput.value = "52-Week High Breakout";
+        if (descInput) descInput.value = "Stocks within 3% of their 52-week High with strong Weekly RSI and volume expansion.";
+        addConditionRow({ timeframe: "WEEKLY", indicator: "RSI", period: 14, operator: ">", value: 60.0 });
+        addConditionRow({ timeframe: "DAILY", indicator: "ATH_PCT", period: 252, operator: ">=", value: 97.0 });
+        addConditionRow({ timeframe: "DAILY", indicator: "RVOL", period: 20, operator: ">=", value: 1.2 });
+    } else if (templateKey === "RSI_OVERSOLD") {
+        if (nameInput) nameInput.value = "Daily RSI Oversold Reversal";
+        if (descInput) descInput.value = "Stocks rebounding from oversold readings while maintaining monthly structural support.";
+        addConditionRow({ timeframe: "MONTHLY", indicator: "RSI", period: 14, operator: ">=", value: 40.0 });
+        addConditionRow({ timeframe: "DAILY", indicator: "RSI", period: 14, operator: "between", value: 30.0, value_high: 42.0 });
+    }
+}
+
+async function saveStrategyFromModal() {
+    const stratId = document.getElementById("modalStrategyId").value.trim();
+    const name = document.getElementById("inputStrategyName").value.trim();
+    const universe = document.getElementById("selectStrategyUniverse").value.trim();
+    const description = document.getElementById("inputStrategyDesc").value.trim();
+
+    if (!name) {
+        showToast("Please enter a name for the scanner.", "warning");
+        return;
+    }
+
+    const container = document.getElementById("conditionsListContainer");
+    const rows = container ? container.querySelectorAll(".condition-row-card") : [];
+    if (rows.length === 0) {
+        showToast("Please add at least one condition rule.", "warning");
+        return;
+    }
+
+    const conditions = [];
+    rows.forEach(r => {
+        const tf = r.querySelector(".cond-tf").value;
+        const ind = r.querySelector(".cond-ind").value;
+        const per = parseInt(r.querySelector(".cond-per").value, 10) || 14;
+        const op = r.querySelector(".cond-op").value;
+        const val = parseFloat(r.querySelector(".cond-val").value);
+        const highVal = op === "between" ? parseFloat(r.querySelector(".cond-val-high").value) : null;
+        const shift = parseInt(r.querySelector(".cond-shift").value, 10) || 0;
+
+        if (isNaN(val)) return;
+
+        conditions.push({
+            timeframe: tf,
+            indicator: ind,
+            period: per,
+            operator: op,
+            value: val,
+            value_high: highVal,
+            shift: shift,
+        });
+    });
+
+    if (conditions.length === 0) {
+        showToast("Please specify valid condition threshold values.", "warning");
+        return;
+    }
+
+    const payload = {
+        name: name,
+        universe: universe,
+        description: description,
+        purpose: description,
+        conditions: conditions,
+    };
+
+    try {
+        let res;
+        if (stratId) {
+            // Update existing
+            res = await fetch(`/api/strategies/${encodeURIComponent(stratId)}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload),
+            });
+        } else {
+            // Create new
+            res = await fetch("/api/strategies", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload),
+            });
+        }
+
+        if (!res.ok) {
+            const errJson = await res.json();
+            throw new Error(errJson.detail || "Server rejected strategy configuration");
+        }
+
+        const data = await res.json();
+        showToast(data.message || "✓ Scanner saved successfully!", "success");
+        closeStrategyModal();
+
+        // Refresh strategies and switch to the newly saved strategy
+        await fetchStrategiesList();
+        if (data.strategy && data.strategy.strategy_id) {
+            activeScannerStrategyId = data.strategy.strategy_id;
+            renderStrategyTabs();
+            updateScannerInfoStrip(activeScannerStrategyId);
+        }
+    } catch (err) {
+        console.error("Save strategy failed:", err);
+        showToast(`Failed to save scanner: ${err.message}`, "error");
+    }
+}
+
+async function handleResetStrategy(strategyId) {
+    if (!confirm("Are you sure you want to reset this strategy back to its default rules?")) return;
+
+    try {
+        const res = await fetch(`/api/strategies/${encodeURIComponent(strategyId)}/reset`, { method: "POST" });
+        if (!res.ok) {
+            const err = await res.json();
+            throw new Error(err.detail || "Failed to reset");
+        }
+        const data = await res.json();
+        showToast(data.message || "✓ Strategy restored to default rules", "success");
+        await fetchStrategiesList();
+    } catch (e) {
+        showToast(`Reset error: ${e.message}`, "error");
+    }
+}
+
+async function handleDeleteStrategy(strategyId) {
+    if (!confirm("Are you sure you want to delete this custom scanner? This cannot be undone.")) return;
+
+    try {
+        const res = await fetch(`/api/strategies/${encodeURIComponent(strategyId)}`, { method: "DELETE" });
+        if (!res.ok) {
+            const err = await res.json();
+            throw new Error(err.detail || "Failed to delete");
+        }
+        const data = await res.json();
+        showToast(data.message || "✓ Custom scanner deleted", "info");
+        activeScannerStrategyId = "ALL";
+        await fetchStrategiesList();
+    } catch (e) {
+        showToast(`Delete error: ${e.message}`, "error");
     }
 }
 
@@ -1543,8 +1948,8 @@ async function runMarketScanner() {
         candidatesGrid.innerHTML = `
             <div style="grid-column: 1 / -1; text-align: center; padding: 40px; color: var(--text-secondary);">
                 <div class="spinner" style="margin: 0 auto 12px auto;"></div>
-                <div style="font-weight: 700; color: #F1F5F9;">Running Multi-Timeframe Wilder RSI(14) Scanner...</div>
-                <div style="font-size: 0.82rem; color: var(--text-muted); margin-top: 4px;">Evaluating 500+ Indian equities with zero look-ahead bias</div>
+                <div style="font-weight: 700; color: #F1F5F9;">Running Multi-Timeframe Strategy Scanner...</div>
+                <div style="font-size: 0.82rem; color: var(--text-muted); margin-top: 4px;">Evaluating equity universe with zero look-ahead bias</div>
             </div>
         `;
     }
@@ -1579,7 +1984,9 @@ function renderScannerCandidates(data) {
     if (data.strategy_id === "ALL") {
         const byStrat = data.results_by_strategy || {};
         for (const [sId, sRes] of Object.entries(byStrat)) {
-            if (sRes.candidates) {
+            if (Array.isArray(sRes)) {
+                candidates.push(...sRes);
+            } else if (sRes.candidates) {
                 candidates.push(...sRes.candidates);
             }
         }
@@ -2149,6 +2556,16 @@ window.handleRefreshStock = handleRefreshStock;
 window.selectSectorFromUniverse = selectSectorFromUniverse;
 window.syncTopLeaders = syncTopLeaders;
 window.showToast = showToast;
+window.openStrategyModal = openStrategyModal;
+window.closeStrategyModal = closeStrategyModal;
+window.addConditionRow = addConditionRow;
+window.onCondIndicatorChange = onCondIndicatorChange;
+window.onCondOperatorChange = onCondOperatorChange;
+window.applyStrategyTemplate = applyStrategyTemplate;
+window.saveStrategyFromModal = saveStrategyFromModal;
+window.handleResetStrategy = handleResetStrategy;
+window.handleDeleteStrategy = handleDeleteStrategy;
 
 document.addEventListener("DOMContentLoaded", init);
+
 

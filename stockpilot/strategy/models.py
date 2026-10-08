@@ -93,6 +93,41 @@ class Condition:
             "description": self.description,
         }
 
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "Condition":
+        """Deserializes Condition from dictionary."""
+        tf_raw = str(d.get("timeframe", "DAILY")).strip().upper()
+        timeframe = Timeframe(tf_raw) if tf_raw in [t.value for t in Timeframe] else Timeframe.DAILY
+
+        op_raw = str(d.get("operator", ">")).strip().lower()
+        operator = Operator.GT
+        for op in Operator:
+            if op.value.lower() == op_raw or op.name.lower() == op_raw:
+                operator = op
+                break
+
+        val = float(d.get("value", 50.0))
+        val_high = float(d["value_high"]) if d.get("value_high") is not None else None
+
+        desc = d.get("description", "")
+        if not desc:
+            ind_name = f"{d.get('indicator', 'RSI')}({d.get('period', 14)})"
+            if operator == Operator.BETWEEN and val_high is not None:
+                desc = f"{timeframe.value} {ind_name} between {val} and {val_high}"
+            else:
+                desc = f"{timeframe.value} {ind_name} {operator.value} {val}"
+
+        return cls(
+            timeframe=timeframe,
+            indicator=str(d.get("indicator", "RSI")).upper(),
+            period=int(d.get("period", 14)),
+            operator=operator,
+            value=val,
+            value_high=val_high,
+            shift=int(d.get("shift", 0)),
+            description=desc,
+        )
+
 
 @dataclass
 class ConditionEvidence:
@@ -121,11 +156,13 @@ class StrategyDefinition:
     strategy_id: str
     name: str
     description: str
-    universe: str  # Default universe: "NIFTY 50", "NIFTY 200", "NIFTY 500"
+    universe: str  # Default universe: "NIFTY 50", "NIFTY 200", "NIFTY 500", "ALL"
     conditions: List[Condition]
     required_timeframes: List[Timeframe] = field(default_factory=list)
     required_indicators: List[str] = field(default_factory=lambda: ["RSI"])
     purpose: str = ""
+    is_builtin: bool = True
+    is_customized: bool = False
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -134,10 +171,31 @@ class StrategyDefinition:
             "description": self.description,
             "universe": self.universe,
             "purpose": self.purpose,
+            "is_builtin": self.is_builtin,
+            "is_customized": self.is_customized,
             "required_timeframes": [t.value for t in self.required_timeframes],
             "required_indicators": self.required_indicators,
             "conditions": [c.to_dict() for c in self.conditions],
         }
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "StrategyDefinition":
+        """Deserializes StrategyDefinition from dictionary."""
+        conds = [Condition.from_dict(c) for c in d.get("conditions", [])]
+        req_tf = list({c.timeframe for c in conds})
+        req_ind = list({c.indicator for c in conds})
+        return cls(
+            strategy_id=str(d.get("strategy_id", "")).strip().upper(),
+            name=str(d.get("name", "Custom Strategy")).strip(),
+            description=str(d.get("description", "")).strip(),
+            universe=str(d.get("universe", "NIFTY 500")).strip(),
+            conditions=conds,
+            required_timeframes=req_tf,
+            required_indicators=req_ind or ["RSI"],
+            purpose=str(d.get("purpose", d.get("description", ""))).strip(),
+            is_builtin=bool(d.get("is_builtin", False)),
+            is_customized=bool(d.get("is_customized", False)),
+        )
 
 
 @dataclass

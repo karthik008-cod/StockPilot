@@ -14,8 +14,12 @@ from stockpilot.strategy.registry import (
     STRATEGY_3,
     STRATEGY_4,
     STRATEGY_REGISTRY,
+    create_custom_strategy,
+    delete_strategy,
     get_strategy,
     list_strategies,
+    reset_strategy,
+    update_strategy,
 )
 from stockpilot.strategy.resampler import (
     compute_wilder_rsi,
@@ -39,6 +43,10 @@ __all__ = [
     "STRATEGY_REGISTRY",
     "get_strategy",
     "list_strategies",
+    "create_custom_strategy",
+    "update_strategy",
+    "delete_strategy",
+    "reset_strategy",
     "compute_wilder_rsi",
     "resample_to_timeframe",
     "extract_multi_timeframe_indicators",
