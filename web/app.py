@@ -27,6 +27,7 @@ from stockpilot.strategy import (
     delete_strategy,
     reset_strategy,
 )
+from stockpilot.ml import ml_engine
 
 
 logger = logging.getLogger(__name__)
@@ -535,6 +536,65 @@ def get_market_stats():
         }
     except Exception as e:
         logger.error("Market stats error: %s", e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/ml/regime")
+def get_ml_regime():
+    """Returns macroeconomic market regime detected via GMM on benchmark."""
+    try:
+        return ml_engine.get_market_regime()
+    except Exception as e:
+        logger.error("Error detecting ML market regime: %s", e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/ml/qualify")
+def get_ml_qualification(ticker: str = Query(..., description="Stock ticker symbol e.g. RELIANCE.NS")):
+    """Returns meta-label trade qualification, win probability, SHAP attributions, and Kelly multiplier."""
+    try:
+        clean_ticker = ticker if (ticker.endswith(".NS") or ticker.startswith("^")) else f"{ticker}.NS"
+        result = ml_engine.analyze_stock_ml(clean_ticker)
+        if "error" in result:
+            raise HTTPException(status_code=400, detail=result["error"])
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Error qualifying stock %s with ML: %s", ticker, e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/ml/features")
+def get_ml_features(ticker: str = Query(..., description="Stock ticker symbol e.g. RELIANCE.NS")):
+    """Returns detailed microstructure and stationarity feature snapshot."""
+    try:
+        clean_ticker = ticker if (ticker.endswith(".NS") or ticker.startswith("^")) else f"{ticker}.NS"
+        df = loader.load_ohlcv(clean_ticker, start_date="2020-01-01")
+        if df.empty:
+            raise HTTPException(status_code=404, detail=f"No data for {clean_ticker}")
+        if len(df) > 500:
+            df = df.tail(500).reset_index(drop=True)
+            
+        feats_df = ml_engine.feature_pipeline.extract_features(df, ml_engine._benchmark_cached_df)
+        if feats_df.empty:
+            raise HTTPException(status_code=400, detail="Feature extraction failed")
+        
+        latest = feats_df.iloc[-1].to_dict()
+        # Clean any float NaN or non-serializable values
+        cleaned_latest = {
+            k: (None if pd.isna(v) else round(float(v), 4) if isinstance(v, (float, np.floating)) else str(v) if isinstance(v, pd.Timestamp) else v) 
+            for k, v in latest.items()
+        }
+        return {
+            "ticker": clean_ticker,
+            "feature_count": len(cleaned_latest),
+            "features": cleaned_latest,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Error extracting ML features for %s: %s", ticker, e)
         raise HTTPException(status_code=500, detail=str(e))
 
 

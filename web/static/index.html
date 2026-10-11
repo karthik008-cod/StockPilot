@@ -4,85 +4,105 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>StockPilot | Multi-Timeframe Strategy & Market Explorer</title>
+    <meta name="description" content="StockPilot - Multi-timeframe strategy scanner, stock analysis, and trade planning for Indian equities. NIFTY 50/100/200/500 coverage with Wilder RSI technical setups.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-    <div class="glow-orb orb-1"></div>
-    <div class="glow-orb orb-2"></div>
 
     <div class="app-container">
         <!-- Top Navigation Bar -->
         <header class="navbar">
-            <div class="nav-brand">
-                <div class="brand-logo">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                        <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
-                        <polyline points="2 17 12 22 22 17"></polyline>
-                        <polyline points="2 12 12 17 22 12"></polyline>
-                    </svg>
+            <div class="nav-left">
+                <div class="nav-brand">
+                    <div class="brand-logo">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                            <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+                            <polyline points="2 17 12 22 22 17"></polyline>
+                            <polyline points="2 12 12 17 22 12"></polyline>
+                        </svg>
+                    </div>
+                    <span class="brand-title">StockPilot</span>
                 </div>
-                <div>
-                    <div class="brand-title">StockPilot <span class="brand-badge">PRO</span></div>
-                    <div class="brand-sub">Multi-Timeframe Strategy & Quantitative Execution Engine</div>
-                </div>
+
+                <nav class="nav-links" id="mainTabNav">
+                    <button type="button" class="nav-link active" data-tab="tabViewAnalysis" onclick="switchTab('tabViewAnalysis')">Stock Analysis</button>
+                    <button type="button" class="nav-link" data-tab="tabViewScanner" onclick="switchTab('tabViewScanner')">Strategy Scanner</button>
+                    <button type="button" class="nav-link" data-tab="tabViewPlanner" onclick="switchTab('tabViewPlanner')">Trade Planner</button>
+                    <button type="button" class="nav-link" data-tab="tabViewUniverse" onclick="switchTab('tabViewUniverse')">Universe & Sync</button>
+                    <button type="button" class="nav-link" data-tab="tabViewML" onclick="switchTab('tabViewML')">AI / ML Engine</button>
+                </nav>
             </div>
 
-            <div class="nav-status">
-                <span class="status-indicator live"></span>
-                <span class="status-text" id="liveFeedStatus">NSE Live Feed (Yahoo Finance)</span>
+            <div class="nav-right">
+                <div class="nav-capital-badge" title="Portfolio Trading Capital">
+                    <span class="nav-capital-lbl">Capital:</span>
+                    <span class="nav-capital-val" id="navCapitalDisplay">₹1,00,000</span>
+                </div>
+                <div class="nav-status">
+                    <span class="status-dot live"></span>
+                    <span class="status-text" id="liveFeedStatus">NSE Live Feed</span>
+                </div>
             </div>
         </header>
 
-        <!-- Main Application Navigation Bar (Modular Tabs) -->
-        <nav class="main-tab-nav" id="mainTabNav">
-            <button class="nav-tab-btn active" data-tab="tabViewAnalysis">
-                <span class="tab-icon">📊</span>
-                <div class="nav-tab-text-group">
-                    <span class="tab-text">Stock Analysis</span>
-                    <span class="tab-subtext">Deep-Dive Charts & Records</span>
+        <!-- Dhan-Style Market Indices Ticker Strip -->
+        <div class="market-indices-strip" id="marketIndicesStrip">
+            <div class="indices-strip-left">
+                <div class="index-ticker-item">
+                    <span class="index-sym">NIFTY 50</span>
+                    <span class="index-ltp">24,812.30</span>
+                    <span class="index-chg negative">-371.25 (-1.64%) ↘</span>
                 </div>
-            </button>
-            <button class="nav-tab-btn" data-tab="tabViewScanner">
-                <span class="tab-icon">⚡</span>
-                <div class="nav-tab-text-group">
-                    <span class="tab-text">Strategy Scanner</span>
-                    <span class="tab-subtext">Multi-Timeframe Setups</span>
+                <div class="index-ticker-item">
+                    <span class="index-sym">NIFTY NEXT 50</span>
+                    <span class="index-ltp">67,614.50</span>
+                    <span class="index-chg negative">-1,789.50 (-2.58%) ↘</span>
                 </div>
-                <span class="nav-tab-badge">4 Setups</span>
-            </button>
-            <button class="nav-tab-btn" data-tab="tabViewPlanner">
-                <span class="tab-icon">🎯</span>
-                <div class="nav-tab-text-group">
-                    <span class="tab-text">Trade & Risk Planner</span>
-                    <span class="tab-subtext">Horizon & Position Sizing</span>
+                <div class="index-ticker-item">
+                    <span class="index-sym">BANK NIFTY</span>
+                    <span class="index-ltp">54,515.05</span>
+                    <span class="index-chg negative">-540.50 (-0.98%) ↘</span>
                 </div>
-            </button>
-            <button class="nav-tab-btn" data-tab="tabViewUniverse">
-                <span class="tab-icon">🌐</span>
-                <div class="nav-tab-text-group">
-                    <span class="tab-text">Universe & Data Sync</span>
-                    <span class="tab-subtext">Market Coverage & Live Refresh</span>
+                <div class="index-ticker-item">
+                    <span class="index-sym">INDIA VIX</span>
+                    <span class="index-ltp">15.28</span>
+                    <span class="index-chg positive">+1.39 (+10.01%) ↗</span>
                 </div>
-            </button>
-        </nav>
+                <div class="index-ticker-item">
+                    <span class="index-sym">NIFTY 500</span>
+                    <span class="index-ltp">23,140.80</span>
+                    <span class="index-chg negative">-280.10 (-1.20%) ↘</span>
+                </div>
+            </div>
+            <div class="indices-strip-right">
+                <div class="index-quick-stat">
+                    <span class="iqs-label">Max Risk:</span>
+                    <span class="iqs-value" id="navMaxLossDisplay">₹2,000</span>
+                </div>
+                <div class="index-quick-stat">
+                    <span class="iqs-label">Coverage:</span>
+                    <span class="iqs-value">501 Stocks</span>
+                </div>
+            </div>
+        </div>
 
         <!-- Toast Notification Container -->
         <div id="toastNotification" class="toast-notification"></div>
 
         <!-- ============================================================== -->
-        <!-- TAB 1: STOCK ANALYSIS (Deep-Dive Charts, Metrics, OHLCV Table) -->
+        <!-- TAB 1: STOCK ANALYSIS -->
         <!-- ============================================================== -->
         <div class="app-tab-pane active" id="tabViewAnalysis">
 
-            <!-- Progressive Workflow Stepper Tracker -->
+            <!-- Progressive Workflow Stepper -->
             <section class="workflow-stepper-card" id="workflowStepperCard">
                 <div class="stepper-header">
                     <div class="stepper-title-wrap">
-                        <span class="stepper-pill">DISCIPLINED EXECUTION</span>
-                        <h2 class="stepper-title">Analysis & Setup Pipeline</h2>
+                        <span class="stepper-pill">ANALYSIS PIPELINE</span>
+                        <h2 class="stepper-title">Stock Selection Workflow</h2>
                     </div>
                     <div class="stepper-current-status" id="workflowStatusBadge">
                         <span class="pulse-dot"></span> Step 1 of 4: Select Index Universe
@@ -90,7 +110,6 @@
                 </div>
 
                 <div class="stepper-steps-track">
-                    <!-- Step 1: Index -->
                     <div class="step-card active" id="step1Card" data-step="1">
                         <div class="step-badge-num">1</div>
                         <div class="step-info">
@@ -103,7 +122,6 @@
 
                     <div class="step-connector" id="conn1"></div>
 
-                    <!-- Step 2: Sector -->
                     <div class="step-card locked" id="step2Card" data-step="2">
                         <div class="step-badge-num">2</div>
                         <div class="step-info">
@@ -111,12 +129,11 @@
                             <div class="step-name">Sector / Industry</div>
                             <div class="step-selected-val" id="step2SelectedVal">Waiting for Index</div>
                         </div>
-                        <div class="step-state-icon" id="step2Icon">🔒</div>
+                        <div class="step-state-icon" id="step2Icon">Locked</div>
                     </div>
 
                     <div class="step-connector" id="conn2"></div>
 
-                    <!-- Step 3: Stock -->
                     <div class="step-card locked" id="step3Card" data-step="3">
                         <div class="step-badge-num">3</div>
                         <div class="step-info">
@@ -124,12 +141,11 @@
                             <div class="step-name">Select Stock</div>
                             <div class="step-selected-val" id="step3SelectedVal">Waiting for Sector</div>
                         </div>
-                        <div class="step-state-icon" id="step3Icon">🔒</div>
+                        <div class="step-state-icon" id="step3Icon">Locked</div>
                     </div>
 
                     <div class="step-connector" id="conn3"></div>
 
-                    <!-- Step 4: Trade Setup & Horizon -->
                     <div class="step-card locked" id="step4Card" data-step="4">
                         <div class="step-badge-num">4</div>
                         <div class="step-info">
@@ -137,14 +153,14 @@
                             <div class="step-name">Trade Plan & Sizing</div>
                             <div class="step-selected-val" id="step4SelectedVal">Waiting for Stock</div>
                         </div>
-                        <div class="step-state-icon" id="step4Icon">🔒</div>
+                        <div class="step-state-icon" id="step4Icon">Locked</div>
                     </div>
                 </div>
             </section>
 
             <!-- Progressive Flow Interactive Controls -->
             <section class="flow-controls-panel" id="flowControlsPanel">
-                <!-- Step 1 Section: Index Universe -->
+                <!-- Step 1: Index Universe -->
                 <div class="flow-step-section is-active" id="flowSectionStep1">
                     <div class="step-section-heading">
                         <span class="step-section-number">1</span>
@@ -159,7 +175,7 @@
                                 <span class="tier-choice-title">NIFTY 50</span>
                                 <span class="tier-count-pill">50 Stocks</span>
                             </div>
-                            <span class="tier-choice-desc">Flagship blue-chip market leaders</span>
+                            <span class="tier-choice-desc">Blue-chip market leaders</span>
                         </button>
                         <button class="tier-choice-btn" data-tier="NIFTY 100">
                             <div class="tier-btn-header">
@@ -180,19 +196,19 @@
                                 <span class="tier-choice-title">NIFTY 500</span>
                                 <span class="tier-count-pill">501 Stocks</span>
                             </div>
-                            <span class="tier-choice-desc">Broad market index across India</span>
+                            <span class="tier-choice-desc">Broad market index</span>
                         </button>
                         <button class="tier-choice-btn" data-tier="ALL">
                             <div class="tier-btn-header">
                                 <span class="tier-choice-title">All Indices</span>
                                 <span class="tier-count-pill">500+ Stocks</span>
                             </div>
-                            <span class="tier-choice-desc">Complete Indian Equities</span>
+                            <span class="tier-choice-desc">Complete Indian equities</span>
                         </button>
                     </div>
                 </div>
 
-                <!-- Step 2 Section: Sector Filter -->
+                <!-- Step 2: Sector -->
                 <div class="flow-step-section is-disabled" id="flowSectionStep2">
                     <div class="step-section-heading">
                         <span class="step-section-number">2</span>
@@ -205,7 +221,7 @@
                         <div class="control-group flex-1">
                             <div class="select-wrapper">
                                 <select id="sectorSelect" class="custom-select" disabled>
-                                    <option value="" disabled selected>🔒 Select an Index first...</option>
+                                    <option value="" disabled selected>Select an Index first...</option>
                                 </select>
                                 <span class="select-arrow">▼</span>
                             </div>
@@ -214,7 +230,7 @@
                     <div id="sectorPillsContainer" class="sector-quick-pills" style="display: none;"></div>
                 </div>
 
-                <!-- Step 3 Section: Stock Selector & Search -->
+                <!-- Step 3: Stock -->
                 <div class="flow-step-section is-disabled" id="flowSectionStep3">
                     <div class="step-section-heading">
                         <span class="step-section-number">3</span>
@@ -227,7 +243,7 @@
                         <div class="control-group stock-selector-group flex-1">
                             <div class="select-wrapper">
                                 <select id="stockSelect" class="custom-select" disabled>
-                                    <option value="" disabled selected>🔒 Select a Sector first...</option>
+                                    <option value="" disabled selected>Select a Sector first...</option>
                                 </select>
                                 <span class="select-arrow">▼</span>
                             </div>
@@ -236,7 +252,6 @@
                         <div class="control-group search-group" style="min-width: 240px;">
                             <div class="search-wrapper">
                                 <input type="text" id="tableSearch" placeholder="Search by Date or Symbol..." class="search-input" disabled>
-                                <span class="search-icon">🔍</span>
                             </div>
                         </div>
 
@@ -251,54 +266,52 @@
                         </div>
 
                         <div class="toolbar-actions">
-                            <button id="refreshBtn" class="btn btn-secondary" title="Fetch latest live market data from Yahoo Finance / NSE" disabled>
-                                <span class="btn-icon">↻</span> Refresh Data
+                            <button id="refreshBtn" class="btn btn-secondary" title="Fetch latest live market data" disabled>
+                                Refresh Data
                             </button>
                             <button id="exportCsvBtn" class="btn btn-primary" title="Export CSV" disabled>
-                                <span class="btn-icon">📥</span> Export CSV
+                                Export CSV
                             </button>
                         </div>
                     </div>
                 </div>
             </section>
 
-            <!-- Guided Flow State (Displayed when no stock is selected yet) -->
+            <!-- Guided Flow State -->
             <section class="guided-flow-card" id="guidedFlowState">
-                <div class="guided-flow-icon">🎯</div>
                 <h3 class="guided-flow-title">Follow the Flow to Begin Analysis</h3>
                 <p class="guided-flow-desc">
                     StockPilot enforces a disciplined, top-down workflow:
                     <strong>Index Universe</strong> → <strong>Sector</strong> → <strong>Stock</strong> → <strong>Trade Setup & Risk Sizing</strong>.
                 </p>
                 <div class="guided-flow-rule-badge">
-                    <span class="rule-icon">🛡️</span>
                     <span><strong>Core Principle:</strong> No trades is much, much better than loss trades. Only take high-conviction setups.</span>
                 </div>
                 <div class="guided-flow-steps-grid">
                     <div class="guided-step-item" id="guideStep1Box">
                         <span class="guide-step-num">Step 1</span>
                         <span class="guide-step-label">Select Index</span>
-                        <span class="guide-step-status" id="guideStep1Status">👉 Choose above</span>
+                        <span class="guide-step-status" id="guideStep1Status">Choose above</span>
                     </div>
                     <div class="guided-step-item" id="guideStep2Box">
                         <span class="guide-step-num">Step 2</span>
                         <span class="guide-step-label">Select Sector</span>
-                        <span class="guide-step-status" id="guideStep2Status">🔒 Locked</span>
+                        <span class="guide-step-status" id="guideStep2Status">Locked</span>
                     </div>
                     <div class="guided-step-item" id="guideStep3Box">
                         <span class="guide-step-num">Step 3</span>
                         <span class="guide-step-label">Select Stock</span>
-                        <span class="guide-step-status" id="guideStep3Status">🔒 Locked</span>
+                        <span class="guide-step-status" id="guideStep3Status">Locked</span>
                     </div>
                     <div class="guided-step-item" id="guideStep4Box">
                         <span class="guide-step-num">Step 4</span>
                         <span class="guide-step-label">Trade Plan & Sizing</span>
-                        <span class="guide-step-status" id="guideStep4Status">🔒 Locked</span>
+                        <span class="guide-step-status" id="guideStep4Status">Locked</span>
                     </div>
                 </div>
             </section>
 
-            <!-- Stock Workspace (Wraps Summary, Details, Chart, Table) -->
+            <!-- Stock Workspace -->
             <div id="stockWorkspace" class="stock-workspace" style="display: none;">
 
                 <!-- Summary Ribbon -->
@@ -317,7 +330,7 @@
                         </div>
                         <div class="as-of-date">
                             <span>Latest Date: <strong id="latestDate">--</strong></span>
-                            <button id="quickRefreshLink" class="quick-sync-link" title="Fetch latest candle from NSE">↻ Sync Latest</button>
+                            <button id="quickRefreshLink" class="quick-sync-link" title="Fetch latest candle">Sync Latest</button>
                         </div>
                     </div>
 
@@ -358,30 +371,30 @@
                     </div>
                 </section>
 
-                <!-- Live Returns Comparison vs NIFTY 50 -->
+                <!-- Live Returns Comparison -->
                 <section class="returns-card">
                     <div class="returns-legend-bar">
-                        <span class="legend-item"><span class="dot dot-stock"></span> Stock Absolute Returns</span>
-                        <span class="legend-item"><span class="dot dot-bench"></span> NIFTY 50 Absolute Returns</span>
+                        <span class="legend-item"><span class="dot dot-stock"></span> Stock Returns</span>
+                        <span class="legend-item"><span class="dot dot-bench"></span> NIFTY 50 Returns</span>
                     </div>
                     <div class="returns-pills-grid" id="returnsGrid"></div>
                 </section>
 
-                <!-- Quick Action to Switch to Trade Planner Tab -->
+                <!-- Quick Action to Trade Planner -->
                 <div class="quick-planner-banner">
                     <div class="planner-banner-left">
-                        <span class="banner-badge">DISCIPLINED SIZING</span>
+                        <span class="banner-badge">POSITION SIZING</span>
                         <h4>Ready to plan entry, targets & stop-loss for <span id="quickStockName">this stock</span>?</h4>
                         <p>Calculate position sizing, holding horizons, and verify multi-timeframe strategy signals.</p>
                     </div>
                     <button class="btn btn-primary" id="btnGoToPlanner">
-                        Open in Trade & Risk Planner →
+                        Open Trade Planner
                     </button>
                 </div>
 
-                <!-- Live NSE-Style Company Information Cards -->
+                <!-- Company Information Cards -->
                 <section class="company-details-grid">
-                    <!-- 1. Trade Information Card -->
+                    <!-- Trade Information -->
                     <div class="detail-card">
                         <div class="detail-card-header">
                             <h3 class="detail-card-title">Trade Information</h3>
@@ -394,17 +407,17 @@
                                     <span class="metric-value" id="tradeVolLakhs">--</span>
                                 </div>
                                 <div class="metric-cell">
-                                    <span class="metric-label">Traded Value (₹ Cr.)</span>
+                                    <span class="metric-label">Traded Value (Cr.)</span>
                                     <span class="metric-value" id="tradeValCr">--</span>
                                 </div>
                             </div>
                             <div class="detail-metric-row">
                                 <div class="metric-cell">
-                                    <span class="metric-label">Total Market Cap (₹ Cr.)</span>
+                                    <span class="metric-label">Total Market Cap (Cr.)</span>
                                     <span class="metric-value font-mono" id="totalMarketCap">--</span>
                                 </div>
                                 <div class="metric-cell">
-                                    <span class="metric-label">Free Float MCap (₹ Cr.)</span>
+                                    <span class="metric-label">Free Float MCap (Cr.)</span>
                                     <span class="metric-value font-mono" id="freeFloatMarketCap">--</span>
                                 </div>
                             </div>
@@ -431,7 +444,7 @@
                         </div>
                     </div>
 
-                    <!-- 2. Price Information Card -->
+                    <!-- Price Information -->
                     <div class="detail-card">
                         <div class="detail-card-header">
                             <h3 class="detail-card-title">Price Information</h3>
@@ -481,7 +494,7 @@
                         </div>
                     </div>
 
-                    <!-- 3. Securities Information Card -->
+                    <!-- Securities Information -->
                     <div class="detail-card">
                         <div class="detail-card-header">
                             <h3 class="detail-card-title">Securities Information</h3>
@@ -528,7 +541,7 @@
                     </div>
                 </section>
 
-                <!-- Interactive Price & Volume Chart -->
+                <!-- Price & Volume Chart -->
                 <section class="chart-card">
                     <div class="chart-header">
                         <div class="chart-title">
@@ -544,7 +557,7 @@
                     </div>
                 </section>
 
-                <!-- Date-Wise Records (OHLCV) Table -->
+                <!-- OHLCV Table -->
                 <section class="table-card">
                     <div class="table-header-bar">
                         <div class="table-title">
@@ -573,16 +586,16 @@
                             <thead>
                                 <tr>
                                     <th data-sort="Date">Date <span class="sort-icon">↕</span></th>
-                                    <th data-sort="Open">Open (₹) <span class="sort-icon">↕</span></th>
-                                    <th data-sort="High">High (₹) <span class="sort-icon">↕</span></th>
-                                    <th data-sort="Low">Low (₹) <span class="sort-icon">↕</span></th>
-                                    <th data-sort="Close">Close (₹) <span class="sort-icon">↕</span></th>
-                                    <th data-sort="Adj_Close">Adj Close (₹) <span class="sort-icon">↕</span></th>
+                                    <th data-sort="Open">Open <span class="sort-icon">↕</span></th>
+                                    <th data-sort="High">High <span class="sort-icon">↕</span></th>
+                                    <th data-sort="Low">Low <span class="sort-icon">↕</span></th>
+                                    <th data-sort="Close">Close <span class="sort-icon">↕</span></th>
+                                    <th data-sort="Adj_Close">Adj Close <span class="sort-icon">↕</span></th>
                                     <th data-sort="Volume">Volume <span class="sort-icon">↕</span></th>
-                                    <th data-sort="Change">Day Change (₹) <span class="sort-icon">↕</span></th>
-                                    <th data-sort="Change_Pct">Change (%) <span class="sort-icon">↕</span></th>
-                                    <th data-sort="Return_1d_Pct">1D Return (%) <span class="sort-icon">↕</span></th>
-                                    <th>Market Flags</th>
+                                    <th data-sort="Change">Day Change <span class="sort-icon">↕</span></th>
+                                    <th data-sort="Change_Pct">Change % <span class="sort-icon">↕</span></th>
+                                    <th data-sort="Return_1d_Pct">1D Return % <span class="sort-icon">↕</span></th>
+                                    <th>Flags</th>
                                 </tr>
                             </thead>
                             <tbody id="recordsTableBody">
@@ -597,35 +610,33 @@
                     </div>
                 </section>
 
-            </div> <!-- End of stockWorkspace -->
-        </div> <!-- End of tabViewAnalysis -->
+            </div> <!-- End stockWorkspace -->
+        </div> <!-- End tabViewAnalysis -->
 
 
         <!-- ============================================================== -->
-        <!-- TAB 2: STRATEGY SCANNER (Multi-Timeframe Wilder RSI Setups)     -->
+        <!-- TAB 2: STRATEGY SCANNER -->
         <!-- ============================================================== -->
         <div class="app-tab-pane" id="tabViewScanner" style="display: none;">
             <section class="strategy-scanner-section" id="strategyScannerSection">
                 <div class="scanner-header-wrap">
                     <div class="scanner-title-area">
                         <div class="scanner-badge-row">
-                            <span class="scanner-pill">VERIFIED MARKET SIGNALS</span>
-                            <span class="scanner-rule-tag">🛡️ Strict Setups Only</span>
+                            <span class="scanner-pill">VERIFIED SIGNALS</span>
+                            <span class="scanner-rule-tag">Strict Setups Only</span>
                             <span class="scanner-wilder-tag">Wilder RSI(14)</span>
                         </div>
-                        <h2 class="scanner-title">Technical Strategy Recommendation Scanner</h2>
+                        <h2 class="scanner-title">Technical Strategy Scanner</h2>
                         <p class="scanner-subtitle">
-                            StockPilot recommends stocks <strong>strictly</strong> when one of the 4 defined multi-timeframe strategies satisfies its entry conditions.
-                            <em>"No trades is much, much better than loss trades."</em>
+                            Stocks are recommended <strong>strictly</strong> when a defined multi-timeframe strategy satisfies its entry conditions.
+                            <em>"No trades is much better than loss trades."</em>
                         </p>
                     </div>
                     <div class="scanner-action-area">
-                        <button id="btnOpenCreateScanner" class="btn btn-secondary btn-create-scanner" title="Build a custom technical scanner with personalized indicators and timeframes">
-                            <span class="btn-icon">➕</span>
+                        <button id="btnOpenCreateScanner" class="btn btn-secondary btn-create-scanner" title="Build a custom technical scanner">
                             <span>Create Custom Scanner</span>
                         </button>
                         <button id="runScannerBtn" class="btn btn-scan">
-                            <span class="scan-btn-icon">⚡</span>
                             <span id="scanBtnText">Scan Setups</span>
                         </button>
                     </div>
@@ -651,59 +662,57 @@
                     </button>
                     <button class="strat-tab-btn" data-strategy="MONTHLY_RSI_40_43_ZONE">
                         <span class="tab-title">Strategy 4</span>
-                        <span class="tab-sub">Monthly RSI 40–43 Zone (NIFTY 200)</span>
+                        <span class="tab-sub">Monthly RSI 40-43 Zone (NIFTY 200)</span>
                     </button>
                 </div>
 
-                <!-- Strategy Active Details / Conditions Summary -->
+                <!-- Strategy Info Strip -->
                 <div class="strategy-info-strip" id="strategyInfoStrip">
-                    <div class="info-strip-icon">ℹ️</div>
                     <div class="info-strip-content">
                         <div class="info-strip-title-row">
                             <span class="info-strip-label" id="currentStratName">All Setups</span>
-                            <span id="stratCustomBadge" class="strat-tag-custom" style="display: none;">Custom Scanner</span>
+                            <span id="stratCustomBadge" class="strat-tag-custom" style="display: none;">Custom</span>
                             <span id="stratModifiedBadge" class="strat-tag-modified" style="display: none;">Modified</span>
                         </div>
-                        <span class="info-strip-desc" id="currentStratDesc">Scanning NIFTY 500, NIFTY 200, and NIFTY 50 universes for all defined technical setups.</span>
+                        <span class="info-strip-desc" id="currentStratDesc">Scanning all universes for defined technical setups.</span>
                     </div>
                     <div class="info-strip-right-group">
                         <div class="info-strip-universe" id="currentStratUniverse">Universe: NIFTY 500/200/50</div>
                         <div class="strategy-action-buttons-wrap">
-                            <button id="btnEditCurrentStrategy" class="btn btn-secondary btn-sm" title="Customize this strategy's rules, thresholds, and universe">
-                                <span>✏️ Customize</span>
+                            <button id="btnEditCurrentStrategy" class="btn btn-secondary btn-sm" title="Customize this strategy">
+                                <span>Customize</span>
                             </button>
-                            <button id="btnResetCurrentStrategy" class="btn btn-secondary btn-sm" style="display: none;" title="Reset this strategy back to original defaults">
-                                <span>↺ Reset</span>
+                            <button id="btnResetCurrentStrategy" class="btn btn-secondary btn-sm" style="display: none;" title="Reset to defaults">
+                                <span>Reset</span>
                             </button>
-                            <button id="btnDeleteCurrentStrategy" class="btn btn-danger btn-sm" style="display: none;" title="Delete this custom scanner">
-                                <span>🗑️ Delete</span>
+                            <button id="btnDeleteCurrentStrategy" class="btn btn-danger btn-sm" style="display: none;" title="Delete custom scanner">
+                                <span>Delete</span>
                             </button>
                         </div>
                     </div>
                 </div>
 
-                <!-- Scanner Results Container -->
+                <!-- Scanner Results -->
                 <div class="scanner-results-container" id="scannerResultsContainer">
                     <div class="scanner-empty-state" id="scannerEmptyState">
-                        <div class="empty-icon">🔍</div>
                         <div class="empty-title">Ready to Scan Indian Equities</div>
-                        <div class="empty-desc">Click "Scan Setups" above to evaluate 500+ stocks against the multi-timeframe Wilder RSI entry criteria.</div>
+                        <div class="empty-desc">Click "Scan Setups" above to evaluate 500+ stocks against multi-timeframe Wilder RSI entry criteria.</div>
                     </div>
                     <div class="candidates-grid" id="candidatesGrid" style="display: none;"></div>
                 </div>
             </section>
-        </div> <!-- End of tabViewScanner -->
+        </div>
 
 
         <!-- ============================================================== -->
-        <!-- TAB 3: TRADE & RISK PLANNER (Horizon, Capital & Position Size) -->
+        <!-- TAB 3: TRADE & RISK PLANNER -->
         <!-- ============================================================== -->
         <div class="app-tab-pane" id="tabViewPlanner" style="display: none;">
 
-            <!-- Active Stock Bar for Planning -->
+            <!-- Active Stock Bar -->
             <div class="planner-stock-banner" id="plannerStockBanner">
                 <div class="planner-stock-info">
-                    <span class="planner-stock-label">ACTIVE STOCK FOR TRADE PLANNING:</span>
+                    <span class="planner-stock-label">ACTIVE STOCK:</span>
                     <span class="planner-stock-ticker" id="plannerTickerBadge">RELIANCE</span>
                     <span class="planner-stock-price" id="plannerPriceBadge">₹0.00</span>
                 </div>
@@ -712,32 +721,30 @@
                     <select id="plannerStockSelect" class="custom-select planner-quick-select">
                         <option value="" disabled selected>Loading stocks...</option>
                     </select>
-                    <button id="plannerSyncBtn" class="btn btn-secondary btn-sm" title="Refresh live data from NSE">↻ Sync</button>
+                    <button id="plannerSyncBtn" class="btn btn-secondary btn-sm" title="Refresh live data">Sync</button>
                 </div>
             </div>
 
-            <!-- Multi-Timeframe Momentum Monitor & Strategy Signal Verification -->
+            <!-- Multi-Timeframe Momentum Monitor -->
             <section class="mtf-verification-card" id="mtfVerificationCard">
                 <div class="mtf-card-header">
                     <div>
                         <div class="mtf-badge-row">
                             <span class="mtf-badge-tag">MULTI-TIMEFRAME ANALYSIS</span>
-                            <span class="mtf-wilder-tag">Wilder-Smoothed RSI(14)</span>
+                            <span class="mtf-wilder-tag">Wilder RSI(14)</span>
                         </div>
                         <h3 class="mtf-card-title">Technical Strategy Signal Verification</h3>
                         <p class="mtf-card-sub">
-                            Strict multi-timeframe condition verification. Stocks are recommended <strong>only</strong> if they satisfy one of the 4 defined strategy setups.
+                            Strict multi-timeframe condition verification. Stocks are recommended <strong>only</strong> if they satisfy a defined strategy setup.
                         </p>
                     </div>
                     <div id="mtfSignalVerdict" class="signal-verdict verdict-none">
-                        <span class="verdict-icon">🛡️</span>
                         <span class="verdict-text">Checking Setups...</span>
                     </div>
                 </div>
 
                 <!-- MTF 3-Gauge Grid -->
                 <div class="mtf-gauges-grid">
-                    <!-- 1. Daily RSI -->
                     <div class="mtf-gauge-box" id="gaugeBoxDaily">
                         <div class="gauge-label-row">
                             <span class="gauge-label">Daily RSI(14)</span>
@@ -759,7 +766,6 @@
                         <div class="gauge-status-note" id="dailyStatusNote">Daily momentum state</div>
                     </div>
 
-                    <!-- 2. Weekly RSI -->
                     <div class="mtf-gauge-box" id="gaugeBoxWeekly">
                         <div class="gauge-label-row">
                             <span class="gauge-label">Weekly RSI(14)</span>
@@ -777,10 +783,9 @@
                             <span class="scale-highlight">> 60</span>
                             <span>100</span>
                         </div>
-                        <div class="gauge-status-note" id="weeklyStatusNote">Intermediate trend momentum</div>
+                        <div class="gauge-status-note" id="weeklyStatusNote">Intermediate trend</div>
                     </div>
 
-                    <!-- 3. Monthly RSI -->
                     <div class="mtf-gauge-box" id="gaugeBoxMonthly">
                         <div class="gauge-label-row">
                             <span class="gauge-label">Monthly RSI(14)</span>
@@ -799,42 +804,38 @@
                             <span class="scale-highlight">> 60</span>
                             <span>100</span>
                         </div>
-                        <div class="gauge-status-note" id="monthlyStatusNote">Long-term secular momentum</div>
+                        <div class="gauge-status-note" id="monthlyStatusNote">Long-term momentum</div>
                     </div>
                 </div>
 
-                <!-- Strategy Verification Checklist for this Stock -->
                 <div class="strategy-check-details" id="strategyCheckDetails"></div>
             </section>
 
-            <!-- Trade Strategy & Capital Horizon Planner (Option A vs Option B) -->
+            <!-- Trade Strategy & Capital Horizon Planner -->
             <section class="strategy-card" id="strategyCard">
                 <div class="strategy-header">
                     <div>
-                        <h2 class="strategy-title">
-                            <span class="strategy-icon">🎯</span> Trade Strategy & Capital Horizon Planner
-                        </h2>
+                        <h2 class="strategy-title">Trade Strategy & Capital Horizon Planner</h2>
                         <p class="strategy-subtitle">
-                            Configure your trading profile, risk tolerance, and exit model. StockPilot will compute precise position sizing and trade parameters.
+                            Configure trading profile, risk tolerance, and exit model. StockPilot computes precise position sizing and trade parameters.
                         </p>
                     </div>
                     <div class="strategy-badge" id="strategyTrendBadge">Analyzing Setup...</div>
                 </div>
 
-                <!-- User Strategy Disclaimer / Signal Policy Banner -->
+                <!-- Signal Policy Banner -->
                 <div class="strategy-notice-banner">
-                    <div class="notice-icon">🛡️</div>
                     <div class="notice-content">
                         <div class="notice-title">Discipline Policy: "No trade is much better than a loss trade"</div>
                         <div class="notice-text">
-                            The parameters below are calculated strictly as a <strong>Trade Setup & Position Sizing Planner</strong> for your selected stock. 
-                            StockPilot will <strong>not</strong> recommend stocks or issue buy/sell trade calls without a verified signal matching your custom-built strategy setups.
+                            The parameters below are calculated strictly as a <strong>Trade Setup & Position Sizing Planner</strong> for your selected stock.
+                            StockPilot will <strong>not</strong> recommend stocks or issue trade calls without a verified signal matching your custom-built strategy setups.
                         </div>
                     </div>
                     <div class="notice-pill">Setup Calculator</div>
                 </div>
 
-                <!-- Global Trading Configuration Bar -->
+                <!-- Global Trading Config -->
                 <div class="global-config-bar" id="globalConfigBar">
                     <div class="global-config-group">
                         <label for="tradingTypeSelect" class="config-label config-label-global">Trading Type</label>
@@ -849,19 +850,18 @@
                     </div>
 
                     <div class="global-config-group">
-                        <label for="availableCapitalInput" class="config-label config-label-global">Available Capital (₹)</label>
+                        <label for="availableCapitalInput" class="config-label config-label-global">Available Capital</label>
                         <input type="number" id="availableCapitalInput" class="config-num-input config-num-global" value="100000" step="5000" min="1000">
                     </div>
 
                     <div class="global-config-group">
-                        <label for="maxLossInput" class="config-label config-label-global">Max Acceptable Loss (₹)</label>
+                        <label for="maxLossInput" class="config-label config-label-global">Max Acceptable Loss</label>
                         <input type="number" id="maxLossInput" class="config-num-input config-num-global" value="2000" step="500" min="100">
                     </div>
                 </div>
 
-                <!-- Two Interactive Strategy Choice Cards -->
+                <!-- Strategy Options -->
                 <div class="strategy-options-grid">
-                    <!-- Option A: Full Technical Trade -->
                     <div class="strategy-choice-card active" id="optACard">
                         <div class="choice-header">
                             <div class="choice-radio-wrap">
@@ -871,16 +871,15 @@
                             <span class="choice-tag tag-target">Target & SL Driven</span>
                         </div>
                         <p class="choice-desc">
-                            Stay in the trade for the entire duration until the technical target price or stop-loss is reached. Best when there are no debt repayment deadlines or time pressures.
+                            Stay in the trade until the technical target or stop-loss is reached. Best when there are no debt repayment deadlines.
                         </p>
                         <div class="choice-features">
-                            <span>✓ Multi-Tier Targets (T1 & T2)</span>
-                            <span>✓ Technical Support Stop-Loss</span>
-                            <span>✓ Maximize Trend Capture</span>
+                            <span>Multi-Tier Targets (T1 & T2)</span>
+                            <span>Technical Support Stop-Loss</span>
+                            <span>Maximize Trend Capture</span>
                         </div>
                     </div>
 
-                    <!-- Option B: Deadline-Constrained Trade -->
                     <div class="strategy-choice-card" id="optBCard">
                         <div class="choice-header">
                             <div class="choice-radio-wrap">
@@ -890,39 +889,36 @@
                             <span class="choice-tag tag-deadline">Borrowed Capital / Fixed Date</span>
                         </div>
                         <p class="choice-desc">
-                            Stay strictly until a given deadline date. Tailored for trading with borrowed money, margin, or funds that must be returned by an agreed-upon repayment date.
+                            Stay until a given deadline date. For borrowed money, margin, or funds that must be returned by an agreed date.
                         </p>
                         <div class="choice-features">
-                            <span>✓ Time-Decay Realizable Target</span>
-                            <span>✓ Tightened Capital-Protection SL</span>
-                            <span>✓ Debt Financing Cost Deduction</span>
+                            <span>Time-Decay Realizable Target</span>
+                            <span>Tightened Capital-Protection SL</span>
+                            <span>Debt Financing Cost Deduction</span>
                         </div>
                     </div>
                 </div>
 
-                <!-- Option A Term Selector Bar -->
+                <!-- Option A Term Selector -->
                 <div class="term-config-bar" id="termConfigBar">
                     <span class="pills-label">Trade Term:</span>
                     <div class="term-pills-wrap">
                         <button class="term-pill-btn" data-term="short">
-                            <span class="term-pill-icon">⚡</span>
                             <span class="term-pill-text">Short-Term</span>
-                            <span class="term-pill-range">2–15 days</span>
+                            <span class="term-pill-range">2-15 days</span>
                         </button>
                         <button class="term-pill-btn active" data-term="medium">
-                            <span class="term-pill-icon">📊</span>
                             <span class="term-pill-text">Medium-Term</span>
-                            <span class="term-pill-range">5–45 days</span>
+                            <span class="term-pill-range">5-45 days</span>
                         </button>
                         <button class="term-pill-btn" data-term="long">
-                            <span class="term-pill-icon">🏦</span>
                             <span class="term-pill-text">Long-Term</span>
-                            <span class="term-pill-range">20–180 days</span>
+                            <span class="term-pill-range">20-180 days</span>
                         </button>
                     </div>
                 </div>
 
-                <!-- Option B Config Bar -->
+                <!-- Option B Config -->
                 <div class="deadline-config-bar" id="deadlineConfigBar" style="display: none;">
                     <div class="deadline-input-group">
                         <label for="deadlineDateInput" class="config-label">Repayment Deadline Date</label>
@@ -938,7 +934,7 @@
                     </div>
 
                     <div class="deadline-input-group">
-                        <label for="borrowedCapitalInput" class="config-label">Borrowed Capital (₹)</label>
+                        <label for="borrowedCapitalInput" class="config-label">Borrowed Capital</label>
                         <input type="number" id="borrowedCapitalInput" class="config-num-input" value="100000" step="5000">
                     </div>
 
@@ -948,25 +944,24 @@
                     </div>
                 </div>
 
-                <!-- Dynamic Trade Plan Detail View -->
+                <!-- Trade Plan Detail View -->
                 <div class="plan-details-panel" id="planDetailsPanel"></div>
             </section>
-        </div> <!-- End of tabViewPlanner -->
+        </div>
 
 
         <!-- ============================================================== -->
-        <!-- TAB 4: UNIVERSE & DATA SYNC (Market Coverage, Freshness & Sync)-->
+        <!-- TAB 4: UNIVERSE & DATA SYNC -->
         <!-- ============================================================== -->
         <div class="app-tab-pane" id="tabViewUniverse" style="display: none;">
-            <!-- Hero Card -->
             <section class="universe-hero-card">
                 <div class="universe-hero-wrap">
                     <div>
                         <span class="hero-pill">INDIAN EQUITIES COVERAGE</span>
-                        <h2 class="universe-hero-title">NIFTY Universe & Live Data Sync Center</h2>
+                        <h2 class="universe-hero-title">NIFTY Universe & Data Sync Center</h2>
                         <p class="universe-hero-desc">
-                            StockPilot tracks, cleans, and analyzes constituents across NIFTY 50, NIFTY 100, NIFTY 200, and NIFTY 500 tiers.
-                            Use this center to inspect data freshness or pull the latest live candles directly from NSE / Yahoo Finance into local cache.
+                            StockPilot tracks, cleans, and analyzes constituents across NIFTY 50, 100, 200, and 500 tiers.
+                            Use this center to inspect data freshness or pull latest candles from NSE / Yahoo Finance.
                         </p>
                     </div>
                     <div class="universe-stats-badge" id="universeDataDateBadge">
@@ -976,7 +971,7 @@
                 </div>
             </section>
 
-            <!-- Tier Coverage Cards Grid -->
+            <!-- Tier Coverage Grid -->
             <div class="universe-tier-grid">
                 <div class="tier-stat-card">
                     <div class="tier-stat-header">
@@ -984,7 +979,7 @@
                         <span class="tier-stat-num">50</span>
                     </div>
                     <h3 class="tier-stat-title">NIFTY 50</h3>
-                    <p class="tier-stat-desc">Blue-chip market leaders representing the core pillars of India's economy.</p>
+                    <p class="tier-stat-desc">Blue-chip market leaders representing India's economy.</p>
                 </div>
                 <div class="tier-stat-card">
                     <div class="tier-stat-header">
@@ -992,7 +987,7 @@
                         <span class="tier-stat-num">100</span>
                     </div>
                     <h3 class="tier-stat-title">NIFTY 100</h3>
-                    <p class="tier-stat-desc">Top 100 large-cap enterprises covering over 70% of free float market cap.</p>
+                    <p class="tier-stat-desc">Top 100 large-cap enterprises covering 70%+ free float MCap.</p>
                 </div>
                 <div class="tier-stat-card">
                     <div class="tier-stat-header">
@@ -1000,7 +995,7 @@
                         <span class="tier-stat-num">200</span>
                     </div>
                     <h3 class="tier-stat-title">NIFTY 200</h3>
-                    <p class="tier-stat-desc">Expansive large and mid-cap growth universe with rich sector diversity.</p>
+                    <p class="tier-stat-desc">Large and mid-cap growth universe with sector diversity.</p>
                 </div>
                 <div class="tier-stat-card highlight">
                     <div class="tier-stat-header">
@@ -1008,18 +1003,18 @@
                         <span class="tier-stat-num">501</span>
                     </div>
                     <h3 class="tier-stat-title">NIFTY 500</h3>
-                    <p class="tier-stat-desc">Complete broad market equity coverage across 22 major industry sectors in India.</p>
+                    <p class="tier-stat-desc">Complete broad market equity coverage across 22 sectors.</p>
                 </div>
             </div>
 
-            <!-- Live Data Freshness & Sync Manager -->
+            <!-- Sync Manager -->
             <section class="sync-manager-card">
                 <div class="sync-manager-header">
                     <div>
-                        <span class="sync-tag">DATA HEALTH & LIVE SYNC</span>
+                        <span class="sync-tag">DATA HEALTH & SYNC</span>
                         <h3 class="sync-title">Market Feed & Cache Synchronization</h3>
                         <p class="sync-sub">
-                            Historical data is cached in fast Apache Parquet format. Click below to pull fresh day's trading ticks directly from Yahoo Finance.
+                            Historical data cached in Apache Parquet format. Pull fresh trading ticks from Yahoo Finance below.
                         </p>
                     </div>
                     <div class="sync-meta-indicators">
@@ -1036,21 +1031,21 @@
 
                 <div class="sync-actions-row">
                     <button class="btn btn-primary" id="btnSyncActiveStock">
-                        <span class="btn-icon">🔄</span> Sync Active Stock (<span id="syncCurrentTickerLbl">None</span>)
+                        Sync Active Stock (<span id="syncCurrentTickerLbl">None</span>)
                     </button>
                     <button class="btn btn-secondary" id="btnSyncTopStocks">
-                        <span class="btn-icon">⚡</span> Sync Top 10 NIFTY Leaders
+                        Sync Top 10 NIFTY Leaders
                     </button>
                     <button class="btn btn-secondary" id="btnRefreshStats">
-                        <span class="btn-icon">📊</span> Refresh Cache Stats
+                        Refresh Cache Stats
                     </button>
                 </div>
 
-                <!-- Sync Console Log -->
+                <!-- Sync Console -->
                 <div class="sync-console-wrap">
                     <div class="console-header">
                         <span>Sync Operations Log</span>
-                        <span class="console-live-tag">● Live</span>
+                        <span class="console-live-tag">Live</span>
                     </div>
                     <div class="sync-console-body" id="syncLogBody">
                         <div class="console-line info">[System] StockPilot Data Engine initialized. Ready to sync market feeds.</div>
@@ -1058,7 +1053,7 @@
                 </div>
             </section>
 
-            <!-- Sector Breakdown Grid -->
+            <!-- Sector Breakdown -->
             <section class="universe-sectors-card">
                 <div class="sectors-header">
                     <h3 class="sectors-title">Sector & Industry Distribution</h3>
@@ -1066,11 +1061,278 @@
                 </div>
                 <div class="sectors-grid" id="universeSectorsGrid"></div>
             </section>
-        </div> <!-- End of tabViewUniverse -->
+        </div> <!-- End tabViewUniverse -->
 
-    </div> <!-- End of app-container -->
+        <!-- ============================================================== -->
+        <!-- TAB 5: AI / ML ENGINE -->
+        <!-- ============================================================== -->
+        <div class="app-tab-pane" id="tabViewML" style="display: none;">
+            
+            <!-- ML Header & Filter Strip -->
+            <section class="ml-header-section">
+                <div class="ml-header-left">
+                    <span class="ml-section-badge">QUANTITATIVE ML ENGINE</span>
+                    <h2 class="ml-main-title">Market Regime Clustering & Meta-Model Gatekeeper</h2>
+                    <p class="ml-sub-title">
+                        Advanced machine learning stack: López de Prado fractional differentiation, rescaled range Hurst exponent, GMM macro regime detection, and calibrated meta-label classifier with asymmetric loss penalty.
+                    </p>
+                </div>
+                <div class="ml-header-right">
+                    <div class="ml-stock-selector-wrap">
+                        <label class="ml-control-lbl" for="mlTickerInput">Target Equity</label>
+                        <div class="ml-input-group">
+                            <input type="text" id="mlTickerInput" class="form-input ml-ticker-field" placeholder="e.g. RELIANCE" value="RELIANCE">
+                            <button type="button" id="btnRunMLAnalysis" onclick="loadMLDashboard(document.getElementById('mlTickerInput').value)" class="btn btn-primary btn-sm">
+                                <span>Evaluate Model</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </section>
 
-    <!-- Strategy Builder & Customizer Modal -->
+            <!-- Institutional Principle Banner -->
+            <div class="ml-discipline-banner">
+                <div class="discipline-banner-tag">CORE PHILOSOPHY</div>
+                <div class="discipline-banner-text">
+                    <strong>Rule: "No trades is much better than loss trades"</strong> — The HistGradientBoosting meta-model applies an asymmetric 2.5× penalty against false-positive breakouts. Setups below 55% calibrated Bayesian win probability are strictly disqualified to preserve capital.
+                </div>
+            </div>
+
+            <!-- Top Grid: Macro Regime & Trade Qualification -->
+            <div class="ml-top-grid">
+                
+                <!-- Card 1: GMM Market Regime Radar -->
+                <div class="ml-card regime-radar-card">
+                    <div class="ml-card-header">
+                        <div>
+                            <span class="ml-card-tag">UNSUPERVISED GMM</span>
+                            <h3 class="ml-card-title">Macro Market Regime</h3>
+                        </div>
+                        <span class="regime-status-badge" id="mlRegimeBadge">CONSOLIDATION</span>
+                    </div>
+
+                    <div class="regime-summary-box">
+                        <div class="regime-summary-desc" id="mlRegimeDesc">
+                            Range-bound contraction with compressed ATR. Ideal for deep oversold reversals.
+                        </div>
+                        <div class="regime-meta-row">
+                            <div class="regime-meta-col">
+                                <span class="meta-label">Benchmark (20D Ret)</span>
+                                <span class="meta-val" id="mlRegimeBenchRet">+1.85%</span>
+                            </div>
+                            <div class="regime-meta-col">
+                                <span class="meta-label">Annual Realized Vol</span>
+                                <span class="meta-val" id="mlRegimeBenchVol">13.4%</span>
+                            </div>
+                            <div class="regime-meta-col">
+                                <span class="meta-label">Market Bias</span>
+                                <span class="meta-val" id="mlRegimeSentiment">NEUTRAL</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="regime-dist-wrap">
+                        <h4 class="sub-card-title">GMM Latent Cluster Distribution</h4>
+                        <div class="regime-prob-bars" id="mlRegimeBarsContainer">
+                            <!-- Injected dynamically: Bull Low-Vol, Bull High-Vol, Consolidation, Bear/High-Risk -->
+                        </div>
+                    </div>
+
+                    <div class="regime-compatibility-box">
+                        <span class="compat-label">Regime Compatible Strategies:</span>
+                        <div class="compat-tags-wrap" id="mlRegimeCompatTags">
+                            <span class="compat-tag">MONTHLY_RSI_40_43_ZONE</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Card 2: Meta-Label Trade Gatekeeper & Kelly Sizing -->
+                <div class="ml-card trade-qualifier-card">
+                    <div class="ml-card-header">
+                        <div>
+                            <span class="ml-card-tag">SUPERVISED META-MODEL</span>
+                            <h3 class="ml-card-title">Trade Qualification & Sizing</h3>
+                        </div>
+                        <span class="qualification-badge" id="mlQualifyBadge">APPROVED</span>
+                    </div>
+
+                    <div class="qualify-metric-grid">
+                        <div class="qualify-metric-cell highlight-cell">
+                            <span class="qm-label">Calibrated Win Probability</span>
+                            <div class="qm-value-row">
+                                <span class="qm-big-val" id="mlWinProbVal">58.0%</span>
+                                <span class="qm-sub-tag" id="mlThresholdTag">Gate: ≥55.0%</span>
+                            </div>
+                            <div class="meter-bar-track">
+                                <div class="meter-bar-fill" id="mlWinProbBar" style="width: 58%;"></div>
+                                <div class="meter-threshold-line" title="55% Cutoff" style="left: 55%;"></div>
+                            </div>
+                        </div>
+
+                        <div class="qualify-metric-cell">
+                            <span class="qm-label">Half-Kelly Sizing Multiplier</span>
+                            <div class="qm-value-row">
+                                <span class="qm-big-val" id="mlKellyMultVal">0.18×</span>
+                                <span class="qm-sub-tag">Conservative Risk</span>
+                            </div>
+                            <span class="qm-footnote" id="mlKellyCapitalNote">Allocates ₹18,000 on ₹1,00,000 account</span>
+                        </div>
+                    </div>
+
+                    <div class="qualify-verdict-box" id="mlDisciplineBox">
+                        <div class="verdict-icon-line">
+                            <span class="verdict-status-title" id="mlVerdictTitle">VERDICT: APPROVED</span>
+                        </div>
+                        <p class="verdict-status-sub" id="mlDisciplineNote">
+                            Verified setup cleared precision gatekeeper. Mathematical positive expectancy verified.
+                        </p>
+                    </div>
+
+                    <div class="triple-barrier-meta">
+                        <div class="tb-item">
+                            <span class="tb-lbl">Upper Barrier (Target)</span>
+                            <span class="tb-val positive">+6.0% Profit</span>
+                        </div>
+                        <div class="tb-item">
+                            <span class="tb-lbl">Lower Barrier (Stop)</span>
+                            <span class="tb-val negative">-3.0% Stop</span>
+                        </div>
+                        <div class="tb-item">
+                            <span class="tb-lbl">Vertical Barrier (Time)</span>
+                            <span class="tb-val">15 Sessions</span>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Middle Grid: SHAP Feature Attribution Waterfall (Tailwinds vs Headwinds) -->
+            <section class="ml-card attribution-card">
+                <div class="ml-card-header">
+                    <div>
+                        <span class="ml-card-tag">EXPLAINABLE AI (XAI)</span>
+                        <h3 class="ml-card-title">Feature Attribution & Setup Catalysts</h3>
+                        <p class="ml-card-desc">
+                            Quantifying local feature contributions toward the meta-model verdict. Positive tailwinds drive conviction; negative headwinds reflect structural resistance.
+                        </p>
+                    </div>
+                    <div class="attribution-legend">
+                        <span class="legend-item"><span class="legend-box green"></span> Tailwind (+ Impact)</span>
+                        <span class="legend-item"><span class="legend-box red"></span> Headwind (- Risk)</span>
+                    </div>
+                </div>
+
+                <div class="attribution-columns-grid">
+                    <!-- Tailwinds Column -->
+                    <div class="attribution-column tailwinds-column">
+                        <div class="col-header-bar green-bar">
+                            <span class="col-title">Positive Tailwinds (Supporting Long Trade)</span>
+                            <span class="col-count" id="mlTailwindsCount">0 Factors</span>
+                        </div>
+                        <div class="attribution-items-list" id="mlTailwindsList">
+                            <!-- Dynamic tailwinds -->
+                        </div>
+                    </div>
+
+                    <!-- Headwinds Column -->
+                    <div class="attribution-column headwinds-column">
+                        <div class="col-header-bar red-bar">
+                            <span class="col-title">Negative Headwinds (Risk & Resistance)</span>
+                            <span class="col-count" id="mlHeadwindsCount">0 Factors</span>
+                        </div>
+                        <div class="attribution-items-list" id="mlHeadwindsList">
+                            <!-- Dynamic headwinds -->
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Bottom Grid: Long-Memory & Stationarity Diagnostics -->
+            <section class="ml-card diagnostics-card">
+                <div class="ml-card-header">
+                    <div>
+                        <span class="ml-card-tag">MATHEMATICAL RIGOR</span>
+                        <h3 class="ml-card-title">Memory Preservation & Microstructure Diagnostics</h3>
+                        <p class="ml-card-desc">
+                            Evaluating price stationarity without discarding macro memory, plus high-low volatility estimators.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="diagnostics-grid">
+                    <div class="diag-tile">
+                        <div class="diag-header">
+                            <span class="diag-title">Fractional Differentiation</span>
+                            <span class="diag-badge badge-blue">d* = 0.45</span>
+                        </div>
+                        <div class="diag-val" id="mlDiagFracD">0.45 (Optimal)</div>
+                        <p class="diag-desc">
+                            Binomial expansion (1-B)^0.45 achieves strict ADF stationarity (p &lt; 0.01) while preserving 100% of price memory. Zero integer differencing loss.
+                        </p>
+                    </div>
+
+                    <div class="diag-tile">
+                        <div class="diag-header">
+                            <span class="diag-title">Hurst Exponent (R/S Analysis)</span>
+                            <span class="diag-badge" id="mlHurstBadge">H = 0.50</span>
+                        </div>
+                        <div class="diag-val" id="mlDiagHurst">0.50</div>
+                        <p class="diag-desc" id="mlDiagHurstDesc">
+                            Measures long-term memory of price series. H &gt; 0.5 indicates persistent trend; H &lt; 0.5 indicates mean-reverting noise.
+                        </p>
+                    </div>
+
+                    <div class="diag-tile">
+                        <div class="diag-header">
+                            <span class="diag-title">Garman-Klass Volatility</span>
+                            <span class="diag-badge badge-neutral">OHLC Microstructure</span>
+                        </div>
+                        <div class="diag-val" id="mlDiagGKVol">--%</div>
+                        <p class="diag-desc">
+                            Uses intra-candle Open-High-Low-Close geometry to estimate realized annual volatility with 8× higher statistical efficiency than close-to-close std.
+                        </p>
+                    </div>
+
+                    <div class="diag-tile">
+                        <div class="diag-header">
+                            <span class="diag-title">Parkinson Volatility</span>
+                            <span class="diag-badge badge-neutral">Extreme Value</span>
+                        </div>
+                        <div class="diag-val" id="mlDiagParkinsonVol">--%</div>
+                        <p class="diag-desc">
+                            Estimates diffusion constant using High-Low price extremes over 20 rolling sessions, isolating true price diffusion from noise.
+                        </p>
+                    </div>
+
+                    <div class="diag-tile">
+                        <div class="diag-header">
+                            <span class="diag-title">Normalized ATR (NATR 14)</span>
+                            <span class="diag-badge badge-neutral">Candle Expansion</span>
+                        </div>
+                        <div class="diag-val" id="mlDiagNATR">--%</div>
+                        <p class="diag-desc">
+                            Average True Range expressed as a direct percentage of current price. Standardizes stop-loss distances across equities of different price levels.
+                        </p>
+                    </div>
+
+                    <div class="diag-tile">
+                        <div class="diag-header">
+                            <span class="diag-title">Volatility Ratio (5D / 20D)</span>
+                            <span class="diag-badge badge-neutral">Expansion Ratio</span>
+                        </div>
+                        <div class="diag-val" id="mlDiagVolRatio">--</div>
+                        <p class="diag-desc">
+                            Fast 5-day realized volatility divided by slow 20-day volatility. Values &gt; 1.2 indicate impending or active volatility expansion breakouts.
+                        </p>
+                    </div>
+                </div>
+            </section>
+
+        </div> <!-- End tabViewML -->
+
+    </div> <!-- End app-container -->
+
+    <!-- Strategy Builder Modal -->
     <div id="strategyModal" class="modal-overlay" style="display: none;">
         <div class="modal-dialog strategy-modal-card">
             <div class="modal-header">
@@ -1078,14 +1340,13 @@
                     <span class="modal-pretitle" id="strategyModalPretitle">STRATEGY BUILDER</span>
                     <h3 class="modal-title" id="strategyModalTitle">Create Custom Technical Scanner</h3>
                 </div>
-                <button class="modal-close-btn" id="btnCloseStrategyModal" title="Close modal">✕</button>
+                <button class="modal-close-btn" id="btnCloseStrategyModal" title="Close">✕</button>
             </div>
 
             <div class="modal-body">
                 <form id="strategyForm" onsubmit="event.preventDefault();">
                     <input type="hidden" id="modalStrategyId" value="">
 
-                    <!-- Basic Metadata -->
                     <div class="modal-form-grid">
                         <div class="form-group">
                             <label class="form-label" for="inputStrategyName">Scanner Name <span class="req">*</span></label>
@@ -1094,27 +1355,27 @@
                         <div class="form-group">
                             <label class="form-label" for="selectStrategyUniverse">Target Universe <span class="req">*</span></label>
                             <select id="selectStrategyUniverse" class="form-select">
-                                <option value="NIFTY 50">NIFTY 50 (Blue Chips)</option>
-                                <option value="NIFTY 100">NIFTY 100 (Large Cap)</option>
-                                <option value="NIFTY 200">NIFTY 200 (Large & Mid Cap)</option>
-                                <option value="NIFTY 500" selected>NIFTY 500 (Broad Market)</option>
-                                <option value="ALL">ALL (Entire Indian Market)</option>
+                                <option value="NIFTY 50">NIFTY 50</option>
+                                <option value="NIFTY 100">NIFTY 100</option>
+                                <option value="NIFTY 200">NIFTY 200</option>
+                                <option value="NIFTY 500" selected>NIFTY 500</option>
+                                <option value="ALL">ALL</option>
                             </select>
                         </div>
                     </div>
 
                     <div class="form-group" style="margin-top: 14px;">
-                        <label class="form-label" for="inputStrategyDesc">Strategy Description & Trading Hypothesis</label>
-                        <textarea id="inputStrategyDesc" class="form-textarea" rows="2" placeholder="Explain the rationale, setup conditions, and trading idea..."></textarea>
+                        <label class="form-label" for="inputStrategyDesc">Strategy Description</label>
+                        <textarea id="inputStrategyDesc" class="form-textarea" rows="2" placeholder="Explain the rationale and trading idea..."></textarea>
                     </div>
 
                     <!-- Quick Templates -->
                     <div class="strategy-templates-bar">
                         <span class="templates-lbl">Quick Templates:</span>
-                        <button type="button" class="btn-preset-pill" onclick="applyStrategyTemplate('RSI_MOMENTUM')">⚡ Strong RSI Momentum</button>
-                        <button type="button" class="btn-preset-pill" onclick="applyStrategyTemplate('EMA_PULLBACK')">📉 20 EMA Pullback</button>
-                        <button type="button" class="btn-preset-pill" onclick="applyStrategyTemplate('ATH_BREAKOUT')">🚀 52W High Breakout</button>
-                        <button type="button" class="btn-preset-pill" onclick="applyStrategyTemplate('RSI_OVERSOLD')">🛡️ Oversold Reversal</button>
+                        <button type="button" class="btn-preset-pill" onclick="applyStrategyTemplate('RSI_MOMENTUM')">Strong RSI Momentum</button>
+                        <button type="button" class="btn-preset-pill" onclick="applyStrategyTemplate('EMA_PULLBACK')">20 EMA Pullback</button>
+                        <button type="button" class="btn-preset-pill" onclick="applyStrategyTemplate('ATH_BREAKOUT')">52W High Breakout</button>
+                        <button type="button" class="btn-preset-pill" onclick="applyStrategyTemplate('RSI_OVERSOLD')">Oversold Reversal</button>
                     </div>
 
                     <!-- Conditions Builder -->
@@ -1125,11 +1386,10 @@
                                 <p class="conditions-section-sub">A stock must satisfy <strong>all</strong> conditions below to generate a signal.</p>
                             </div>
                             <button type="button" id="btnAddConditionRow" class="btn btn-secondary btn-sm">
-                                <span>➕ Add Rule</span>
+                                <span>+ Add Rule</span>
                             </button>
                         </div>
 
-                        <!-- Column Headers for the builder -->
                         <div class="conditions-table-header">
                             <span class="th-col col-tf">Timeframe</span>
                             <span class="th-col col-ind">Indicator</span>
@@ -1141,7 +1401,7 @@
                         </div>
 
                         <div id="conditionsListContainer" class="conditions-list-wrap">
-                            <!-- Dynamic rows injected here -->
+                            <!-- Dynamic rows -->
                         </div>
                     </div>
                 </form>

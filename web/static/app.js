@@ -134,22 +134,22 @@ function updateFlowUI() {
         step1Card.className = "step-card active";
         step1Icon.textContent = "●";
         step1SelectedVal.textContent = "Select Index";
-        if (guideStep1Status) guideStep1Status.textContent = "👉 Choose above";
+        if (guideStep1Status) guideStep1Status.textContent = "Choose above";
 
         step2Card.className = "step-card locked";
-        step2Icon.textContent = "🔒";
+        step2Icon.textContent = "Locked";
         step2SelectedVal.textContent = "Waiting for Index";
-        if (guideStep2Status) guideStep2Status.textContent = "🔒 Locked";
+        if (guideStep2Status) guideStep2Status.textContent = "Locked";
 
         step3Card.className = "step-card locked";
-        step3Icon.textContent = "🔒";
+        step3Icon.textContent = "Locked";
         step3SelectedVal.textContent = "Waiting for Sector";
-        if (guideStep3Status) guideStep3Status.textContent = "🔒 Locked";
+        if (guideStep3Status) guideStep3Status.textContent = "Locked";
 
         step4Card.className = "step-card locked";
-        step4Icon.textContent = "🔒";
+        step4Icon.textContent = "Locked";
         step4SelectedVal.textContent = "Waiting for Stock";
-        if (guideStep4Status) guideStep4Status.textContent = "🔒 Locked";
+        if (guideStep4Status) guideStep4Status.textContent = "Locked";
 
         conn1.className = "step-connector";
         conn2.className = "step-connector";
@@ -183,17 +183,17 @@ function updateFlowUI() {
         step2Card.className = "step-card active";
         step2Icon.textContent = "●";
         step2SelectedVal.textContent = "Select Sector";
-        if (guideStep2Status) guideStep2Status.textContent = "👉 Choose sector";
+        if (guideStep2Status) guideStep2Status.textContent = "Choose sector";
 
         step3Card.className = "step-card locked";
-        step3Icon.textContent = "🔒";
+        step3Icon.textContent = "Locked";
         step3SelectedVal.textContent = "Waiting for Sector";
-        if (guideStep3Status) guideStep3Status.textContent = "🔒 Locked";
+        if (guideStep3Status) guideStep3Status.textContent = "Locked";
 
         step4Card.className = "step-card locked";
-        step4Icon.textContent = "🔒";
+        step4Icon.textContent = "Locked";
         step4SelectedVal.textContent = "Waiting for Stock";
-        if (guideStep4Status) guideStep4Status.textContent = "🔒 Locked";
+        if (guideStep4Status) guideStep4Status.textContent = "Locked";
 
         conn2.className = "step-connector";
         conn3.className = "step-connector";
@@ -227,12 +227,12 @@ function updateFlowUI() {
         step3Card.className = "step-card active";
         step3Icon.textContent = "●";
         step3SelectedVal.textContent = "Select Stock";
-        if (guideStep3Status) guideStep3Status.textContent = "👉 Choose stock";
+        if (guideStep3Status) guideStep3Status.textContent = "Choose stock";
 
         step4Card.className = "step-card locked";
-        step4Icon.textContent = "🔒";
+        step4Icon.textContent = "Locked";
         step4SelectedVal.textContent = "Waiting for Stock";
-        if (guideStep4Status) guideStep4Status.textContent = "🔒 Locked";
+        if (guideStep4Status) guideStep4Status.textContent = "Locked";
 
         conn3.className = "step-connector";
 
@@ -278,6 +278,7 @@ function updateFlowUI() {
     workflowStatusBadge.innerHTML = `<span class="status-indicator live"></span> Active Analysis: ${currentTicker} (${currentTier} › ${displaySector})`;
     guidedFlowState.style.display = "none";
     stockWorkspace.style.display = "flex";
+    stockWorkspace.style.flexDirection = "column";
 }
 
 /**
@@ -307,7 +308,7 @@ async function onSelectTier(tier) {
 async function loadSectorsForTier(tier) {
     if (!sectorSelect) return;
     try {
-        sectorSelect.innerHTML = `<option value="" disabled selected>⏳ Loading sectors in ${tier}...</option>`;
+        sectorSelect.innerHTML = `<option value="" disabled selected>Loading sectors in ${tier}...</option>`;
         const res = await fetch(`/api/sectors?tier=${encodeURIComponent(tier)}`);
         const data = await res.json();
         currentSectorDetails = data.sector_details || [];
@@ -390,7 +391,7 @@ async function onSelectSector(sector) {
 async function loadStocksForSector(tier, sector) {
     if (!stockSelect) return;
     try {
-        stockSelect.innerHTML = `<option value="" disabled selected>⏳ Loading stocks...</option>`;
+        stockSelect.innerHTML = `<option value="" disabled selected>Loading stocks...</option>`;
         const params = new URLSearchParams();
         if (tier && tier !== "ALL") params.append("tier", tier);
         if (sector && sector !== "ALL") params.append("sector", sector);
@@ -705,9 +706,9 @@ function renderTable() {
 
         let flagHtml = `<span style="color:#64748B; font-size:11px;">Normal</span>`;
         if (r.is_circuit) {
-            flagHtml = `<span class="badge-circuit" style="background: rgba(239, 68, 68, 0.15); color: #EF4444; border: 1px solid rgba(239, 68, 68, 0.3); padding: 2px 7px; border-radius: 4px; font-size: 11px; font-weight: 600;">🔒 Circuit</span>`;
+            flagHtml = `<span class="badge-circuit" style="background: rgba(239, 68, 68, 0.15); color: #EF4444; border: 1px solid rgba(239, 68, 68, 0.3); padding: 2px 7px; border-radius: 4px; font-size: 11px; font-weight: 600;">Circuit</span>`;
         } else if (r.is_outlier) {
-            flagHtml = `<span class="badge-outlier" style="background: rgba(245, 158, 11, 0.15); color: #F59E0B; border: 1px solid rgba(245, 158, 11, 0.3); padding: 2px 7px; border-radius: 4px; font-size: 11px; font-weight: 600;">⚡ Outlier</span>`;
+            flagHtml = `<span class="badge-outlier" style="background: rgba(245, 158, 11, 0.15); color: #F59E0B; border: 1px solid rgba(245, 158, 11, 0.3); padding: 2px 7px; border-radius: 4px; font-size: 11px; font-weight: 600;">Outlier</span>`;
         }
 
         return `
@@ -1171,7 +1172,6 @@ function renderTradePlan() {
             ${renderPositionSizing(ps, a.target_1, a.target_2, a.stop_loss, cmp)}
 
             <div class="plan-rule-banner rule-banner-a">
-                <span class="banner-icon">🎯</span>
                 <div>
                     <strong>Option A ${a.trade_term_label} ${(a.trading_type || 'Swing').charAt(0).toUpperCase() + (a.trading_type || 'Swing').slice(1)} Execution Rule:</strong> ${a.exit_rule}
                     <div style="font-size: 0.82rem; color: #94A3B8; margin-top: 4px;">
@@ -1250,7 +1250,6 @@ function renderTradePlan() {
             ${renderPositionSizing(b.position_sizing || {}, b.time_constrained_target, b.time_constrained_target * 1.02, b.tightened_stop_loss, cmp)}
 
             <div class="plan-rule-banner rule-banner-b">
-                <span class="banner-icon">⚠️</span>
                 <div>
                     <strong style="color: #F87171;">MANDATORY BORROWED CAPITAL REPAYMENT RULE:</strong> ${b.mandatory_exit_rule}
                     <div style="font-size: 0.82rem; color: #FECACA; margin-top: 4px;">
@@ -1280,7 +1279,7 @@ function renderPositionSizing(ps, t1, t2, sl, entry) {
     return `
         <div class="position-sizing-grid">
             <div class="pos-size-header">
-                <span>📐</span> Position Sizing & Risk Management
+                Position Sizing & Risk Management
             </div>
 
             <div class="pos-stat-mini">
@@ -1323,7 +1322,7 @@ function renderPositionSizing(ps, t1, t2, sl, entry) {
                 <span class="pos-stat-mini-val">${(ps.shares_affordable || 0).toLocaleString()}</span>
             </div>
 
-            ${note ? `<div class="sizing-note-bar">💡 ${note}</div>` : ''}
+            ${note ? `<div class="sizing-note-bar">${note}</div>` : ''}
         </div>
     `;
 }
@@ -1428,9 +1427,24 @@ function setupTradeStrategyListeners() {
         });
     }
 
-    // ─── Global Config: Available Capital ────────────────────────────
+    // ─── Global Config: Capital & Risk Sync with Dhan-style Top Bar ──
+    function syncNavCapital() {
+        const navCap = document.getElementById("navCapitalDisplay");
+        const navLoss = document.getElementById("navMaxLossDisplay");
+        if (navCap && availableCapitalInput) {
+            const val = parseFloat(availableCapitalInput.value) || 0;
+            navCap.textContent = `₹${formatNumber(val)}`;
+        }
+        if (navLoss && maxLossInput) {
+            const val = parseFloat(maxLossInput.value) || 0;
+            navLoss.textContent = `₹${formatNumber(val)}`;
+        }
+    }
+    syncNavCapital();
+
     if (availableCapitalInput) {
         availableCapitalInput.addEventListener("input", () => {
+            syncNavCapital();
             clearTimeout(tradeSetupDebounceTimer);
             tradeSetupDebounceTimer = setTimeout(() => {
                 fetchTradeSetup(currentTicker);
@@ -1438,9 +1452,9 @@ function setupTradeStrategyListeners() {
         });
     }
 
-    // ─── Global Config: Max Acceptable Loss ──────────────────────────
     if (maxLossInput) {
         maxLossInput.addEventListener("input", () => {
+            syncNavCapital();
             clearTimeout(tradeSetupDebounceTimer);
             tradeSetupDebounceTimer = setTimeout(() => {
                 fetchTradeSetup(currentTicker);
@@ -1996,11 +2010,10 @@ function renderScannerCandidates(data) {
 
     if (candidates.length === 0) {
         candidatesGrid.innerHTML = `
-            <div style="grid-column: 1 / -1; text-align: center; padding: 40px; background: rgba(0,0,0,0.2); border-radius: var(--radius-md); border: 1px dashed rgba(255,255,255,0.12);">
-                <div style="font-size: 2rem; margin-bottom: 8px;">🛡️</div>
-                <div style="font-size: 1.1rem; font-weight: 700; color: #FCD34D;">No Stocks Currently Satisfy Entry Criteria</div>
-                <div style="font-size: 0.86rem; color: var(--text-muted); max-width: 500px; margin: 8px auto 0 auto; line-height: 1.5;">
-                    <strong>"No trades is much better than loss trades."</strong> None of the scanned stocks currently meet the strict multi-timeframe conditions. Check back after market hours.
+            <div style="grid-column: 1 / -1; text-align: center; padding: 40px; background: var(--bg-elevated); border-radius: var(--radius-md); border: 1px solid var(--border-primary);">
+                <div style="font-size: 1rem; font-weight: 600; color: var(--color-warning);">No Stocks Currently Satisfy Entry Criteria</div>
+                <div style="font-size: 0.857rem; color: var(--text-muted); max-width: 500px; margin: 8px auto 0 auto; line-height: 1.5;">
+                    <strong>"No trades is much better than loss trades."</strong> None of the scanned stocks currently meet the strict multi-timeframe conditions.
                 </div>
             </div>
         `;
@@ -2036,8 +2049,8 @@ function renderScannerCandidates(data) {
                     </div>
                 </div>
 
-                <div style="font-size: 0.74rem; font-weight: 700; color: #34D399; display: flex; align-items: center; gap: 4px;">
-                    <span>⚡</span> <span>${stratDisplay}</span>
+                <div style="font-size: 0.74rem; font-weight: 700; color: var(--color-positive); display: flex; align-items: center; gap: 4px;">
+                    <span>${stratDisplay}</span>
                 </div>
 
                 <div class="candidate-mtf-pills">
@@ -2061,10 +2074,10 @@ function renderScannerCandidates(data) {
 
                 <div class="candidate-card-footer" style="display: flex; gap: 8px; flex-wrap: wrap;">
                     <button class="btn-inspect-candidate" style="flex: 1; min-width: 130px;" onclick="selectCandidateStock('${c.symbol}', 'analysis')">
-                        📊 Analyze Stock →
+                        Analyze Stock
                     </button>
                     <button class="btn-inspect-candidate" style="flex: 1; min-width: 130px; background: rgba(59, 130, 246, 0.15); border-color: rgba(59, 130, 246, 0.4); color: #60A5FA;" onclick="selectCandidateStock('${c.symbol}', 'planner')">
-                        🎯 Plan Trade & Sizing →
+                        Plan Trade & Sizing
                     </button>
                 </div>
             </div>
@@ -2123,6 +2136,7 @@ function selectCandidateStock(ticker, targetTab = "analysis") {
     if (guidedFlowState) guidedFlowState.style.display = "none";
     if (stockWorkspace) {
         stockWorkspace.style.display = "flex";
+        stockWorkspace.style.flexDirection = "column";
     }
 
     loadStockData(ticker);
@@ -2216,10 +2230,10 @@ async function fetchStockStrategyCheck(ticker) {
             if (data.has_setup) {
                 mtfSignalVerdict.className = "signal-verdict verdict-match";
                 const matchNames = (data.matches || []).map(m => m.name).join(", ");
-                mtfSignalVerdict.innerHTML = `<span>⚡</span> <span>VERIFIED SETUP: ${matchNames}</span>`;
+                mtfSignalVerdict.innerHTML = `<span class="verdict-text">VERIFIED SETUP: ${matchNames}</span>`;
             } else {
                 mtfSignalVerdict.className = "signal-verdict verdict-none";
-                mtfSignalVerdict.innerHTML = `<span>🛡️</span> <span>NO ACTIVE STRATEGY SETUP (Discipline: No trades > Loss trades)</span>`;
+                mtfSignalVerdict.innerHTML = `<span class="verdict-text">NO ACTIVE STRATEGY SETUP (Discipline: No trades > Loss trades)</span>`;
             }
         }
 
@@ -2267,7 +2281,7 @@ async function fetchStockStrategyCheck(ticker) {
 // ==========================================================================
 
 function initTabNavigation() {
-    const tabButtons = document.querySelectorAll(".nav-tab-btn");
+    const tabButtons = document.querySelectorAll(".nav-link");
     tabButtons.forEach(btn => {
         btn.addEventListener("click", () => {
             const targetTab = btn.getAttribute("data-tab");
@@ -2324,10 +2338,28 @@ function initTabNavigation() {
             }
         });
     }
+
+    const btnRunML = document.getElementById("btnRunMLAnalysis");
+    const mlTickerInput = document.getElementById("mlTickerInput");
+    if (btnRunML) {
+        btnRunML.addEventListener("click", () => {
+            const sym = mlTickerInput ? mlTickerInput.value.trim() : "RELIANCE";
+            if (sym) loadMLDashboard(sym);
+        });
+    }
+    if (mlTickerInput) {
+        mlTickerInput.addEventListener("keydown", (e) => {
+            if (e.key === "Enter") {
+                e.preventDefault();
+                const sym = mlTickerInput.value.trim();
+                if (sym) loadMLDashboard(sym);
+            }
+        });
+    }
 }
 
 function switchTab(tabId) {
-    const tabButtons = document.querySelectorAll(".nav-tab-btn");
+    const tabButtons = document.querySelectorAll(".nav-link");
     tabButtons.forEach(btn => {
         if (btn.getAttribute("data-tab") === tabId) {
             btn.classList.add("active");
@@ -2361,6 +2393,15 @@ function switchTab(tabId) {
     if (tabId === "tabViewUniverse") {
         loadMarketStats();
     }
+
+    if (tabId === "tabViewML") {
+        const input = document.getElementById("mlTickerInput");
+        if (input && currentTicker) {
+            input.value = currentTicker.replace(".NS", "");
+        }
+        const sym = (input && input.value.trim()) || (currentTicker ? currentTicker.replace(".NS", "") : "RELIANCE");
+        loadMLDashboard(sym);
+    }
 }
 
 // Toast notification helper
@@ -2371,11 +2412,11 @@ function showToast(message, type = "info") {
     const iconMap = {
         success: "✓",
         error: "✕",
-        warning: "⚠️",
-        info: "ℹ️"
+        warning: "!",
+        info: "i"
     };
 
-    const icon = iconMap[type] || "ℹ️";
+    const icon = iconMap[type] || "i";
     toast.className = `toast-notification toast-${type} show`;
     toast.innerHTML = `
         <span class="toast-icon">${icon}</span>
@@ -2416,15 +2457,15 @@ async function handleRefreshStock(ticker) {
     const originalRefreshHtml = refreshBtn ? refreshBtn.innerHTML : "";
     if (refreshBtn) {
         refreshBtn.disabled = true;
-        refreshBtn.innerHTML = `<span>⏳</span> Syncing ${cleanSym}...`;
+        refreshBtn.innerHTML = `Syncing ${cleanSym}...`;
     }
     if (plannerSyncBtn) {
         plannerSyncBtn.disabled = true;
-        plannerSyncBtn.textContent = "⏳ Syncing...";
+        plannerSyncBtn.textContent = "Syncing...";
     }
     if (quickRefreshLink) {
         quickRefreshLink.disabled = true;
-        quickRefreshLink.textContent = "⏳ Syncing...";
+        quickRefreshLink.textContent = "Syncing...";
     }
     if (btnSyncActiveStock) {
         btnSyncActiveStock.disabled = true;
@@ -2446,15 +2487,15 @@ async function handleRefreshStock(ticker) {
     } finally {
         if (refreshBtn) {
             refreshBtn.disabled = false;
-            refreshBtn.innerHTML = originalRefreshHtml || `<span>🔄</span> Refresh Data`;
+            refreshBtn.innerHTML = originalRefreshHtml || `Refresh Data`;
         }
         if (plannerSyncBtn) {
             plannerSyncBtn.disabled = false;
-            plannerSyncBtn.textContent = "🔄 Sync";
+            plannerSyncBtn.textContent = "Sync";
         }
         if (quickRefreshLink) {
             quickRefreshLink.disabled = false;
-            quickRefreshLink.textContent = "🔄 Sync Latest";
+            quickRefreshLink.textContent = "Sync Latest";
         }
         if (btnSyncActiveStock) {
             btnSyncActiveStock.disabled = false;
@@ -2509,7 +2550,7 @@ async function syncTopLeaders() {
     const btn = document.getElementById("btnSyncTopStocks");
     if (btn) {
         btn.disabled = true;
-        btn.innerHTML = `<span class="btn-icon">⏳</span> Syncing Top 10...`;
+        btn.innerHTML = `Syncing Top 10...`;
     }
 
     const topLeaders = [
@@ -2542,12 +2583,273 @@ async function syncTopLeaders() {
 
     if (btn) {
         btn.disabled = false;
-        btn.innerHTML = `<span class="btn-icon">⚡</span> Sync Top 10 NIFTY Leaders`;
+        btn.innerHTML = `Sync Top 10 NIFTY Leaders`;
     }
 
     if (currentTicker && topLeaders.includes(currentTicker)) {
         loadStockData(currentTicker);
     }
+}
+
+// ==============================================================
+// AI / ML Engine Client Logic (Regime, Meta-Model & Attributions)
+// ==============================================================
+
+async function loadMLDashboard(rawTicker) {
+    if (!rawTicker) rawTicker = "RELIANCE";
+    const ticker = (rawTicker.toUpperCase().endsWith(".NS") || rawTicker.startsWith("^")) 
+        ? rawTicker.toUpperCase() 
+        : `${rawTicker.toUpperCase()}.NS`;
+
+    const cleanSymbol = ticker.replace(".NS", "");
+    const btnRunML = document.getElementById("btnRunMLAnalysis");
+    const origBtnHtml = btnRunML ? btnRunML.innerHTML : "";
+    if (btnRunML) {
+        btnRunML.disabled = true;
+        btnRunML.innerHTML = "<span>Analyzing...</span>";
+    }
+
+    try {
+        const [regimeRes, qualifyRes] = await Promise.all([
+            fetch("/api/ml/regime"),
+            fetch(`/api/ml/qualify?ticker=${encodeURIComponent(ticker)}`),
+        ]);
+
+        if (regimeRes.ok) {
+            const regimeData = await regimeRes.json();
+            renderMLRegime(regimeData);
+        }
+
+        if (qualifyRes.ok) {
+            const qualifyData = await qualifyRes.json();
+            renderMLQualification(qualifyData, cleanSymbol);
+        } else {
+            const errJson = await qualifyRes.json().catch(() => ({}));
+            showToast(`ML Analysis: ${errJson.detail || "Could not analyze stock"}`, "warning");
+        }
+    } catch (err) {
+        console.error("ML Dashboard error:", err);
+        showToast(`ML Engine error: ${err.message}`, "error");
+    } finally {
+        if (btnRunML) {
+            btnRunML.disabled = false;
+            btnRunML.innerHTML = origBtnHtml;
+        }
+    }
+}
+
+function renderMLRegime(data) {
+    if (!data) return;
+
+    const badge = document.getElementById("mlRegimeBadge");
+    const desc = document.getElementById("mlRegimeDesc");
+    const benchRet = document.getElementById("mlRegimeBenchRet");
+    const benchVol = document.getElementById("mlRegimeBenchVol");
+    const sentiment = document.getElementById("mlRegimeSentiment");
+    const barsContainer = document.getElementById("mlRegimeBarsContainer");
+    const compatTags = document.getElementById("mlRegimeCompatTags");
+
+    if (badge) {
+        badge.textContent = data.name || data.regime_id;
+        badge.className = "regime-status-badge";
+        if (data.sentiment === "BULLISH") badge.classList.add("bullish");
+        else if (data.sentiment === "DEFENSIVE") badge.classList.add("bearish");
+    }
+
+    if (desc) desc.textContent = data.desc || "Market regime evaluation active.";
+
+    if (benchRet) {
+        const retVal = data.benchmark_ret_20d !== undefined ? data.benchmark_ret_20d : 0;
+        benchRet.textContent = `${retVal >= 0 ? "+" : ""}${retVal.toFixed(2)}%`;
+        benchRet.style.color = retVal >= 0 ? "var(--color-positive)" : "var(--color-negative)";
+    }
+
+    if (benchVol) {
+        benchVol.textContent = `${(data.benchmark_vol_20d || 0).toFixed(1)}%`;
+    }
+
+    if (sentiment) {
+        sentiment.textContent = data.sentiment || "NEUTRAL";
+        sentiment.style.color = data.sentiment === "BULLISH" ? "var(--color-positive)" : data.sentiment === "DEFENSIVE" ? "var(--color-negative)" : "var(--color-warning)";
+    }
+
+    if (barsContainer && data.probabilities) {
+        const colorMap = {
+            "BULL_LOW_VOL": "#00c076",
+            "BULL_HIGH_VOL": "#0ecb81",
+            "CONSOLIDATION": "#f0b90b",
+            "BEAR_HIGH_RISK": "#f6465d",
+        };
+        const nameMap = {
+            "BULL_LOW_VOL": "Bull Trend (Low Vol)",
+            "BULL_HIGH_VOL": "Bull Breakout (High Vol)",
+            "CONSOLIDATION": "Consolidation / Range",
+            "BEAR_HIGH_RISK": "Distribution / Bear Risk",
+        };
+
+        barsContainer.innerHTML = Object.entries(data.probabilities).map(([rId, pct]) => {
+            const barColor = colorMap[rId] || "#2962ff";
+            const displayName = nameMap[rId] || rId;
+            return `
+                <div class="regime-bar-row">
+                    <div class="regime-bar-labels">
+                        <span class="regime-bar-name">${displayName}</span>
+                        <span class="regime-bar-pct">${Number(pct).toFixed(1)}%</span>
+                    </div>
+                    <div class="regime-bar-track">
+                        <div class="regime-bar-fill" style="width: ${Math.min(pct, 100)}%; background: ${barColor};"></div>
+                    </div>
+                </div>
+            `;
+        }).join("");
+    }
+
+    if (compatTags) {
+        const strats = data.compatible_strategies || [];
+        if (strats.length > 0) {
+            compatTags.innerHTML = strats.map(s => `<span class="compat-tag">${s}</span>`).join("");
+        } else {
+            compatTags.innerHTML = `<span class="compat-tag" style="color: var(--color-negative);">NO STRATEGIES COMPATIBLE (Capital Preservation)</span>`;
+        }
+    }
+}
+
+function renderMLQualification(data, cleanSymbol) {
+    if (!data) return;
+
+    const q = data.qualification || {};
+    const mem = data.memory_metrics || {};
+    const attr = data.attributions || {};
+
+    // 1. Qualification Badge & Verdict
+    const badge = document.getElementById("mlQualifyBadge");
+    const verdictTitle = document.getElementById("mlVerdictTitle");
+    const disciplineBox = document.getElementById("mlDisciplineBox");
+    const disciplineNote = document.getElementById("mlDisciplineNote");
+
+    const isApproved = Boolean(q.is_approved);
+    if (badge) {
+        badge.textContent = q.verdict || (isApproved ? "APPROVED" : "DISQUALIFIED");
+        badge.className = `qualification-badge ${isApproved ? "" : "disqualified"}`;
+    }
+
+    if (disciplineBox) {
+        disciplineBox.className = `qualify-verdict-box ${isApproved ? "" : "disqualified"}`;
+    }
+
+    if (verdictTitle) {
+        verdictTitle.textContent = isApproved ? `VERDICT: APPROVED FOR ${cleanSymbol}` : `VERDICT: DISQUALIFIED FOR ${cleanSymbol}`;
+    }
+
+    if (disciplineNote) {
+        disciplineNote.textContent = q.discipline_note || (isApproved 
+            ? "Verified setup cleared precision gatekeeper. Mathematical positive expectancy verified." 
+            : "Setup disqualified: Win probability below 55% gatekeeper threshold. Capital preserved.");
+    }
+
+    // 2. Win Probability Meter
+    const winProbVal = document.getElementById("mlWinProbVal");
+    const winProbBar = document.getElementById("mlWinProbBar");
+    const probNum = Number(q.success_probability || 0);
+
+    if (winProbVal) {
+        winProbVal.textContent = `${probNum.toFixed(1)}%`;
+        winProbVal.style.color = isApproved ? "var(--color-positive)" : "var(--color-negative)";
+    }
+
+    if (winProbBar) {
+        winProbBar.style.width = `${Math.min(Math.max(probNum, 0), 100)}%`;
+        winProbBar.style.background = isApproved ? "var(--color-positive)" : "var(--color-negative)";
+    }
+
+    // 3. Kelly Sizing
+    const kellyMultVal = document.getElementById("mlKellyMultVal");
+    const kellyNote = document.getElementById("mlKellyCapitalNote");
+    const kMult = Number(q.kelly_multiplier || 0);
+
+    if (kellyMultVal) {
+        kellyMultVal.textContent = `${kMult.toFixed(2)}×`;
+        kellyMultVal.style.color = kMult > 0 ? "var(--color-positive)" : "var(--text-muted)";
+    }
+
+    if (kellyNote) {
+        if (kMult > 0) {
+            const allocAmt = Math.round(100000 * kMult);
+            kellyNote.textContent = `Allocates ₹${allocAmt.toLocaleString("en-IN")} on ₹1,00,000 portfolio`;
+        } else {
+            kellyNote.textContent = `Zero capital allocated (Risk mitigation active)`;
+        }
+    }
+
+    // 4. Feature Attributions (Tailwinds vs Headwinds)
+    const tailwindsList = document.getElementById("mlTailwindsList");
+    const headwindsList = document.getElementById("mlHeadwindsList");
+    const tailwindsCount = document.getElementById("mlTailwindsCount");
+    const headwindsCount = document.getElementById("mlHeadwindsCount");
+
+    const tailwinds = attr.tailwinds || [];
+    const headwinds = attr.headwinds || [];
+
+    if (tailwindsCount) tailwindsCount.textContent = `${tailwinds.length} Factors`;
+    if (headwindsCount) headwindsCount.textContent = `${headwinds.length} Factors`;
+
+    if (tailwindsList) {
+        if (tailwinds.length === 0) {
+            tailwindsList.innerHTML = `<div class="attribution-empty">No positive tailwinds detected for this candle.</div>`;
+        } else {
+            tailwindsList.innerHTML = tailwinds.map(t => `
+                <div class="attribution-item-row">
+                    <div class="attr-item-left">
+                        <span class="attr-feature-name">${t.feature}</span>
+                        <span class="attr-feature-desc">${t.desc}</span>
+                        <span class="attr-feature-val">Value: <strong>${t.val !== undefined ? t.val : "--"}</strong></span>
+                    </div>
+                    <span class="attr-impact-pill tailwind">+${Number(t.impact).toFixed(1)}%</span>
+                </div>
+            `).join("");
+        }
+    }
+
+    if (headwindsList) {
+        if (headwinds.length === 0) {
+            headwindsList.innerHTML = `<div class="attribution-empty">No significant headwinds detected. Clean runway.</div>`;
+        } else {
+            headwindsList.innerHTML = headwinds.map(h => `
+                <div class="attribution-item-row">
+                    <div class="attr-item-left">
+                        <span class="attr-feature-name">${h.feature}</span>
+                        <span class="attr-feature-desc">${h.desc}</span>
+                        <span class="attr-feature-val">Value: <strong>${h.val !== undefined ? h.val : "--"}</strong></span>
+                    </div>
+                    <span class="attr-impact-pill headwind">${Number(h.impact).toFixed(1)}%</span>
+                </div>
+            `).join("");
+        }
+    }
+
+    // 5. Memory & Diagnostics Tiles
+    const diagHurst = document.getElementById("mlDiagHurst");
+    const hurstBadge = document.getElementById("mlHurstBadge");
+    const hurstDesc = document.getElementById("mlDiagHurstDesc");
+    const diagGKVol = document.getElementById("mlDiagGKVol");
+    const diagParkinson = document.getElementById("mlDiagParkinsonVol");
+    const diagNATR = document.getElementById("mlDiagNATR");
+    const diagVolRatio = document.getElementById("mlDiagVolRatio");
+
+    const hVal = mem.hurst_exponent !== undefined ? mem.hurst_exponent : 0.50;
+    if (diagHurst) diagHurst.textContent = Number(hVal).toFixed(2);
+    if (hurstBadge) {
+        hurstBadge.textContent = `H = ${Number(hVal).toFixed(2)}`;
+        hurstBadge.className = `diag-badge ${hVal > 0.55 ? "badge-green" : hVal < 0.45 ? "badge-yellow" : "badge-neutral"}`;
+    }
+    if (hurstDesc) {
+        hurstDesc.textContent = mem.hurst_interpretation || "Measures long-term memory of price series.";
+    }
+
+    if (diagGKVol) diagGKVol.textContent = `${(mem.garman_klass_annual_vol || 0).toFixed(1)}%`;
+    if (diagParkinson) diagParkinson.textContent = `${(mem.parkinson_annual_vol || 0).toFixed(1)}%`;
+    if (diagNATR) diagNATR.textContent = `${(mem.natr_pct || 0).toFixed(2)}%`;
+    if (diagVolRatio) diagVolRatio.textContent = `${(mem.vol_ratio_5_20 || 1.0).toFixed(2)}`;
 }
 
 // Expose helpers globally
@@ -2565,6 +2867,7 @@ window.applyStrategyTemplate = applyStrategyTemplate;
 window.saveStrategyFromModal = saveStrategyFromModal;
 window.handleResetStrategy = handleResetStrategy;
 window.handleDeleteStrategy = handleDeleteStrategy;
+window.loadMLDashboard = loadMLDashboard;
 
 document.addEventListener("DOMContentLoaded", init);
 
