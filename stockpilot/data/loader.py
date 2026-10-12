@@ -61,6 +61,13 @@ class DataLoader:
                     except Exception:
                         cache_is_max = False
 
+                if cache_file.stat().st_size == 0:
+                    try:
+                        cache_file.unlink()
+                    except Exception:
+                        pass
+                    raise ValueError("0-byte parquet file removed")
+
                 df = pd.read_parquet(cache_file)
                 if not df.empty and "Date" in df.columns:
                     df["Date"] = pd.to_datetime(df["Date"])
@@ -608,13 +615,16 @@ class DataLoader:
                                     ticker_df[c] = np.nan
                         ticker_df = ticker_df[expected_cols].sort_values("Date").reset_index(drop=True)
 
-                        if cache_file.exists():
-                            old_df = pd.read_parquet(cache_file)
-                            old_df["Date"] = pd.to_datetime(old_df["Date"]).dt.tz_localize(None)
-                            old_df["Date"] = pd.to_datetime(old_df["Date"].dt.date)
-                            merged = pd.concat([old_df, ticker_df], ignore_index=True)
-                            merged = merged.drop_duplicates(subset=["Date"], keep="last").sort_values("Date").reset_index(drop=True)
-                            final_df = merged
+                        if cache_file.exists() and cache_file.stat().st_size > 0:
+                            try:
+                                old_df = pd.read_parquet(cache_file)
+                                old_df["Date"] = pd.to_datetime(old_df["Date"]).dt.tz_localize(None)
+                                old_df["Date"] = pd.to_datetime(old_df["Date"].dt.date)
+                                merged = pd.concat([old_df, ticker_df], ignore_index=True)
+                                merged = merged.drop_duplicates(subset=["Date"], keep="last").sort_values("Date").reset_index(drop=True)
+                                final_df = merged
+                            except Exception:
+                                final_df = ticker_df
                         else:
                             final_df = ticker_df
 
