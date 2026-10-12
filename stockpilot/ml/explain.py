@@ -195,6 +195,27 @@ class FeatureAttributor:
                 "explanation": f"Significant volume expansion ({vol_shock:.1f}x 20-day avg) validates institutional participation."
             })
 
+        # 7. Alpha / Relative Strength over Benchmark
+        alpha_20 = float(feature_row.get("excess_return_20d", 0.0))
+        if alpha_20 > 5.0:
+            attributions.append({
+                "feature": "excess_return_20d",
+                "label": FEATURE_FRIENDLY_NAMES["excess_return_20d"],
+                "value": f"+{alpha_20:.1f}%",
+                "impact": round(min(0.22, alpha_20 * 0.012), 3),
+                "type": "positive",
+                "explanation": f"Massive relative strength (+{alpha_20:.1f}% alpha) confirms stock is decoupling bullishly from benchmark."
+            })
+        elif alpha_20 < -8.0:
+            attributions.append({
+                "feature": "excess_return_20d",
+                "label": FEATURE_FRIENDLY_NAMES["excess_return_20d"],
+                "value": f"{alpha_20:.1f}%",
+                "impact": -0.14,
+                "type": "negative",
+                "explanation": f"Severe relative lag ({alpha_20:.1f}% vs index) indicates institutional capital rotation away from asset."
+            })
+
         # Sort by absolute impact
         attributions.sort(key=lambda x: abs(x["impact"]), reverse=True)
         return attributions

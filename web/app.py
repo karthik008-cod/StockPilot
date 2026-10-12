@@ -2,6 +2,7 @@
 
 import json
 import logging
+import time
 from pathlib import Path
 from typing import Any, Dict, Optional
 import numpy as np
@@ -41,6 +42,17 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def add_no_cache_headers(request, call_next):
+    response = await call_next(request)
+    if request.url.path.startswith("/static") or request.url.path == "/":
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+    return response
+
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 STATIC_DIR = PROJECT_ROOT / "web" / "static"
@@ -125,8 +137,10 @@ def get_stock_data(
     ticker_info = universe.get_stock(ticker) or {"symbol": ticker, "name": ticker, "sector": "Market", "indices": ["NIFTY 50"]}
 
     try:
-        # Load complete history; if refresh=True, force fetch latest from Yahoo Finance
-        df = loader.load_ohlcv(ticker, period="max", force_reload=refresh)
+        # Load complete history; if refresh=True, incrementally sync latest data from Yahoo Finance
+        if refresh:
+            loader.sync_live_ohlcv(ticker)
+        df = loader.load_ohlcv(ticker, period="max")
         if df.empty:
             raise HTTPException(status_code=404, detail=f"No data found for ticker {ticker}")
 
@@ -280,6 +294,51 @@ def get_stock_data(
 
     except Exception as e:
         logger.error("Error fetching data for %s: %s", ticker, e, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/sync-live-data")
+@app.get("/api/sync-live-data")
+def sync_live_data(
+    ticker: str = Query("RELIANCE.NS", description="Stock ticker symbol to sync"),
+    sync_benchmark: bool = Query(True, description="Also sync benchmark index ^NSEI"),
+):
+    """Fetches live quotes and latest daily candles up to today from Yahoo Finance and updates cache."""
+    clean_ticker = ticker if (ticker.endswith(".NS") or ticker.startswith("^")) else f"{ticker}.NS"
+    try:
+        stock_res = loader.sync_live_ohlcv(clean_ticker)
+        bench_res = None
+        if sync_benchmark:
+            bench_res = loader.sync_live_ohlcv("^NSEI")
+            # Update ML engine's benchmark cache so all models use fresh data
+            try:
+                bench_df = loader.load_ohlcv("^NSEI", start_date="2020-01-01")
+                if not bench_df.empty:
+                    ml_engine._benchmark_cached_df = bench_df.tail(500).reset_index(drop=True)
+            except Exception as me:
+                logger.debug("Benchmark ML engine update notice: %s", me)
+
+        indices_data = None
+        try:
+            indices_res = get_market_indices(refresh=True)
+            indices_data = indices_res.get("indices", [])
+        except Exception as ie:
+            logger.debug("Indices sync error: %s", ie)
+
+        return {
+            "status": "success",
+            "ticker": clean_ticker,
+            "stock": stock_res,
+            "benchmark": bench_res,
+            "indices": indices_data,
+            "latest_date": stock_res.get("latest_date"),
+            "latest_close": stock_res.get("latest_close"),
+            "new_bars_added": stock_res.get("new_bars_added", 0),
+            "total_rows": stock_res.get("total_rows"),
+            "message": f"Successfully updated {clean_ticker} to {stock_res.get('latest_date')}.",
+        }
+    except Exception as e:
+        logger.error("Error syncing live data for %s: %s", clean_ticker, e)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -539,6 +598,142 @@ def get_market_stats():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+_market_indices_cache: Dict[str, Any] = {
+    "timestamp": 0.0,
+    "indices": [],
+}
+
+
+@app.get("/api/market-indices")
+def get_market_indices(refresh: bool = False):
+    """
+    Returns live market indices (NIFTY 50, NIFTY NEXT 50, BANK NIFTY, INDIA VIX, NIFTY 500)
+    with LTP, point change, percentage change, and status.
+    """
+    global _market_indices_cache
+    now = time.time()
+
+    # Cache for 45 seconds unless refresh requested
+    if not refresh and (now - _market_indices_cache["timestamp"] < 45.0) and _market_indices_cache["indices"]:
+        return {
+            "status": "cached",
+            "indices": _market_indices_cache["indices"],
+            "timestamp": _market_indices_cache["timestamp"],
+        }
+
+    indices_config = [
+        ("NIFTY 50", "^NSEI"),
+        ("NIFTY NEXT 50", "^NSMIDCP"),
+        ("BANK NIFTY", "^NSEBANK"),
+        ("INDIA VIX", "^INDIAVIX"),
+        ("NIFTY 500", "^CRSLDX"),
+    ]
+
+    tickers = [t for _, t in indices_config]
+    try:
+        data = yf.download(tickers, period="5d", progress=False)
+        parsed = []
+        for name, ticker in indices_config:
+            ltp, chg, pct, date_str = 0.0, 0.0, 0.0, ""
+            try:
+                if isinstance(data.columns, pd.MultiIndex):
+                    if "Close" in data.columns.levels[0] and ticker in data["Close"].columns:
+                        close_s = data["Close"][ticker].dropna()
+                    else:
+                        close_s = pd.Series(dtype=float)
+                elif "Close" in data:
+                    close_s = data["Close"].dropna()
+                else:
+                    close_s = pd.Series(dtype=float)
+
+                if len(close_s) >= 1:
+                    ltp = float(close_s.iloc[-1])
+                    prev = float(close_s.iloc[-2]) if len(close_s) >= 2 else ltp
+                    chg = ltp - prev
+                    pct = (chg / prev) * 100.0 if prev else 0.0
+                    date_str = str(close_s.index[-1].date())
+            except Exception as parse_err:
+                logger.warning("Error parsing downloaded index %s: %s", ticker, parse_err)
+
+            # Fallback to local loader cache if download gave 0 or empty
+            if ltp == 0.0:
+                try:
+                    cached_df = loader.load_ohlcv(ticker, period="1mo")
+                    if not cached_df.empty and "close" in cached_df.columns:
+                        c_s = cached_df["close"].dropna()
+                        if len(c_s) >= 1:
+                            ltp = float(c_s.iloc[-1])
+                            prev = float(c_s.iloc[-2]) if len(c_s) >= 2 else ltp
+                            chg = ltp - prev
+                            pct = (chg / prev) * 100.0 if prev else 0.0
+                            date_str = str(c_s.index[-1].date()) if hasattr(c_s.index[-1], 'date') else str(c_s.index[-1])[:10]
+                except Exception as cache_err:
+                    logger.debug("Local cache fallback failed for %s: %s", ticker, cache_err)
+
+            parsed.append({
+                "name": name,
+                "ticker": ticker,
+                "ltp": round(ltp, 2),
+                "change": round(chg, 2),
+                "change_pct": round(pct, 2),
+                "is_positive": chg >= 0,
+                "date": date_str,
+            })
+
+        _market_indices_cache = {
+            "timestamp": now,
+            "indices": parsed,
+        }
+        return {
+            "status": "live",
+            "indices": parsed,
+            "timestamp": now,
+        }
+    except Exception as e:
+        logger.error("Failed to fetch live market indices: %s", e)
+        if _market_indices_cache["indices"]:
+            return {
+                "status": "cached_fallback",
+                "indices": _market_indices_cache["indices"],
+                "timestamp": _market_indices_cache["timestamp"],
+            }
+        
+        # Emergency offline fallback from local cache
+        fallback_parsed = []
+        for name, ticker in indices_config:
+            ltp, chg, pct, date_str = 0.0, 0.0, 0.0, ""
+            try:
+                cached_df = loader.load_ohlcv(ticker, period="1mo")
+                if not cached_df.empty and "close" in cached_df.columns:
+                    c_s = cached_df["close"].dropna()
+                    if len(c_s) >= 1:
+                        ltp = float(c_s.iloc[-1])
+                        prev = float(c_s.iloc[-2]) if len(c_s) >= 2 else ltp
+                        chg = ltp - prev
+                        pct = (chg / prev) * 100.0 if prev else 0.0
+                        date_str = str(c_s.index[-1].date()) if hasattr(c_s.index[-1], 'date') else str(c_s.index[-1])[:10]
+            except Exception:
+                pass
+            fallback_parsed.append({
+                "name": name,
+                "ticker": ticker,
+                "ltp": round(ltp, 2),
+                "change": round(chg, 2),
+                "change_pct": round(pct, 2),
+                "is_positive": chg >= 0,
+                "date": date_str,
+            })
+        _market_indices_cache = {
+            "timestamp": now,
+            "indices": fallback_parsed,
+        }
+        return {
+            "status": "offline_fallback",
+            "indices": fallback_parsed,
+            "timestamp": now,
+        }
+
+
 @app.get("/api/ml/regime")
 def get_ml_regime():
     """Returns macroeconomic market regime detected via GMM on benchmark."""
@@ -599,12 +794,13 @@ def get_ml_features(ticker: str = Query(..., description="Stock ticker symbol e.
 
 
 @app.get("/")
-
 def serve_index():
     index_path = STATIC_DIR / "index.html"
     if not index_path.exists():
         raise HTTPException(status_code=404, detail="Frontend index.html not found")
-    return FileResponse(index_path)
+    content = index_path.read_text(encoding="utf-8")
+    from fastapi.responses import HTMLResponse
+    return HTMLResponse(content=content, headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
 
 
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")

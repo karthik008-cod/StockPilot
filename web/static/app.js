@@ -123,6 +123,13 @@ async function init() {
     updateFlowUI();
     initTabNavigation();
     loadMarketStats();
+    loadMarketIndices(false);
+    if (typeof syncNavCapital === "function") syncNavCapital();
+
+    // Auto-refresh market indices every 60 seconds
+    setInterval(() => {
+        loadMarketIndices(false);
+    }, 60000);
 }
 
 /**
@@ -913,7 +920,21 @@ function setupEventListeners() {
     // Refresh & Export
     if (refreshBtn) {
         refreshBtn.addEventListener("click", () => {
-            if (currentTicker) handleRefreshStock(currentTicker);
+            triggerLiveSync(currentTicker);
+        });
+    }
+    const globalLiveSyncBtnEl = document.getElementById("globalLiveSyncBtn");
+    if (globalLiveSyncBtnEl) {
+        globalLiveSyncBtnEl.addEventListener("click", () => {
+            triggerLiveSync();
+        });
+    }
+    const btnSyncMLTickerEl = document.getElementById("btnSyncMLTicker");
+    if (btnSyncMLTickerEl) {
+        btnSyncMLTickerEl.addEventListener("click", () => {
+            const mlInput = document.getElementById("mlTickerInput");
+            const sym = (mlInput && mlInput.value) ? mlInput.value.trim() : null;
+            triggerLiveSync(sym);
         });
     }
     if (exportCsvBtn) {
@@ -1431,15 +1452,16 @@ function setupTradeStrategyListeners() {
     function syncNavCapital() {
         const navCap = document.getElementById("navCapitalDisplay");
         const navLoss = document.getElementById("navMaxLossDisplay");
-        if (navCap && availableCapitalInput) {
-            const val = parseFloat(availableCapitalInput.value) || 0;
+        if (navCap) {
+            const val = availableCapitalInput ? (parseFloat(availableCapitalInput.value) || 100000) : 100000;
             navCap.textContent = `₹${formatNumber(val)}`;
         }
-        if (navLoss && maxLossInput) {
-            const val = parseFloat(maxLossInput.value) || 0;
+        if (navLoss) {
+            const val = maxLossInput ? (parseFloat(maxLossInput.value) || 2000) : 2000;
             navLoss.textContent = `₹${formatNumber(val)}`;
         }
     }
+    window.syncNavCapital = syncNavCapital;
     syncNavCapital();
 
     if (availableCapitalInput) {
@@ -2503,6 +2525,192 @@ async function handleRefreshStock(ticker) {
     }
 }
 
+// Global Live Sync Handler (called by top navbar, stock flow button, and ML tab)
+window.triggerLiveSync = triggerLiveSync;
+window._triggerLiveSyncInternal = triggerLiveSync;
+window.triggerLiveSyncActual = triggerLiveSync;
+async function triggerLiveSync(targetTicker = null) {
+    let ticker = targetTicker;
+    if (!ticker) {
+        if (currentTicker) {
+            ticker = currentTicker;
+        } else {
+            const mlInput = document.getElementById("mlTickerInput");
+            if (mlInput && mlInput.value && mlInput.value.trim()) {
+                ticker = mlInput.value.trim();
+            } else {
+                ticker = "RELIANCE.NS";
+            }
+        }
+    }
+    if (!ticker.endsWith(".NS") && !ticker.startsWith("^")) {
+        ticker = `${ticker}.NS`;
+    }
+
+    const cleanSym = ticker.replace(".NS", "");
+    const globalBtn = document.getElementById("globalLiveSyncBtn");
+    const syncText = document.getElementById("syncBtnText");
+    const refreshBtn = document.getElementById("refreshBtn");
+    const refreshText = document.getElementById("refreshBtnText");
+    const asOfBadge = document.getElementById("dataAsOfBadge");
+    const asOfText = document.getElementById("asOfDateText");
+    const mlSyncBtn = document.getElementById("btnSyncMLTicker");
+
+    if (globalBtn) globalBtn.classList.add("is-syncing");
+    if (syncText) syncText.textContent = "Syncing...";
+    if (refreshBtn) refreshBtn.classList.add("is-syncing");
+    if (refreshText) refreshText.textContent = "Syncing...";
+    if (mlSyncBtn) mlSyncBtn.classList.add("is-syncing");
+
+    showToast(`Syncing live market data for ${cleanSym} from NSE / Yahoo Finance...`, "info");
+    appendSyncLog(`Syncing live market data for ${ticker} and benchmark ^NSEI...`, "info");
+
+    try {
+        const res = await fetch(`/api/sync-live-data?ticker=${encodeURIComponent(ticker)}&sync_benchmark=true`, {
+            method: "POST",
+        });
+        if (!res.ok) {
+            throw new Error(`Server returned HTTP ${res.status}`);
+        }
+        const data = await res.json();
+        const latestDate = data.latest_date || "Today";
+        const latestClose = data.latest_close ? `₹${Number(data.latest_close).toLocaleString("en-IN")}` : "";
+        const newBars = data.new_bars_added || 0;
+
+        if (asOfText) {
+            asOfText.textContent = `Live: ${latestDate}`;
+        }
+        if (asOfBadge) {
+            asOfBadge.classList.add("pulse-success");
+            setTimeout(() => asOfBadge.classList.remove("pulse-success"), 3000);
+        }
+
+        // Update live market indices ticker strip (NIFTY 50, NIFTY NEXT 50, BANK NIFTY, INDIA VIX, NIFTY 500)
+        if (data.indices && Array.isArray(data.indices) && data.indices.length > 0) {
+            renderMarketIndices(data.indices);
+        } else {
+            loadMarketIndices(true);
+        }
+
+        // If a stock was loaded or selected in analysis workspace, reload it
+        if (currentTicker && currentTicker === ticker) {
+            await loadStockData(ticker, false);
+        } else if (!currentTicker && ticker) {
+            currentTicker = ticker;
+            await loadStockData(ticker, false);
+            updateFlowUI();
+        }
+
+        // If on AI/ML Engine tab, refresh the dashboard with new data
+        const tabML = document.getElementById("tabViewML");
+        if (tabML && tabML.style.display !== "none" && typeof loadMLDashboard === "function") {
+            await loadMLDashboard(ticker);
+        }
+
+        const successMsg = newBars > 0
+            ? `✓ Synced ${newBars} new session(s) for ${cleanSym}! Updated to ${latestDate} (LTP: ${latestClose})`
+            : `✓ ${cleanSym} is up to date: ${latestDate} (LTP: ${latestClose})`;
+
+        showToast(successMsg, "success");
+        appendSyncLog(`✓ ${ticker} synced successfully! Updated to ${latestDate}.`, "success");
+
+        if (syncText) syncText.textContent = "Live Synced ✓";
+        if (refreshText) refreshText.textContent = "Live Synced ✓";
+        setTimeout(() => {
+            if (syncText) syncText.textContent = "Get Live Data";
+            if (refreshText) refreshText.textContent = "Get Live Data";
+        }, 2500);
+
+        loadMarketStats();
+        if (typeof syncNavCapital === "function") syncNavCapital();
+    } catch (err) {
+        console.error("Error syncing live data:", err);
+        showToast(`Sync warning: ${err.message}. Using cached data.`, "warning");
+        if (syncText) syncText.textContent = "Get Live Data";
+        if (refreshText) refreshText.textContent = "Get Live Data";
+        loadMarketIndices(true);
+    } finally {
+        if (globalBtn) globalBtn.classList.remove("is-syncing");
+        if (refreshBtn) refreshBtn.classList.remove("is-syncing");
+        if (mlSyncBtn) mlSyncBtn.classList.remove("is-syncing");
+    }
+}
+
+// ─── Market Indices Ticker Strip (NIFTY 50, NIFTY NEXT 50, BANK NIFTY, INDIA VIX, NIFTY 500) ───
+async function loadMarketIndices(forceRefresh = false) {
+    const stripBtn = document.getElementById("stripRefreshBtn");
+    if (forceRefresh && stripBtn) stripBtn.classList.add("is-spinning");
+    try {
+        const url = `/api/market-indices${forceRefresh ? "?refresh=true" : ""}`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        if (data && data.indices && Array.isArray(data.indices) && data.indices.length > 0) {
+            renderMarketIndices(data.indices);
+            return data.indices;
+        }
+    } catch (err) {
+        console.warn("Could not load market indices:", err);
+    } finally {
+        if (stripBtn) stripBtn.classList.remove("is-spinning");
+    }
+    return null;
+}
+
+function renderMarketIndices(indices) {
+    if (!indices || !Array.isArray(indices) || indices.length === 0) return;
+    const container = document.getElementById("indicesStripLeft");
+    if (!container) return;
+
+    container.innerHTML = indices.map(idx => {
+        const isPos = idx.change >= 0;
+        const sign = isPos ? "+" : "";
+        const arrow = isPos ? "↗" : "↘";
+        const chgClass = isPos ? "positive" : "negative";
+        const ltpVal = Number(idx.ltp || 0);
+        const formattedLtp = ltpVal.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        const chgVal = Number(idx.change || 0);
+        const pctVal = Number(idx.change_pct || 0);
+        const formattedChg = `${sign}${chgVal.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (${sign}${pctVal.toFixed(2)}%) ${arrow}`;
+
+        return `
+            <div class="index-ticker-item is-updated" data-index-sym="${idx.name}" title="${idx.name} (${idx.ticker}) - LTP: ₹${formattedLtp} | Date: ${idx.date || 'Live'}">
+                <span class="index-sym">${idx.name}</span>
+                <span class="index-ltp ticker-value-updated">${formattedLtp}</span>
+                <span class="index-chg ${chgClass}">${formattedChg}</span>
+            </div>
+        `;
+    }).join("");
+
+    setTimeout(() => {
+        container.querySelectorAll(".index-ticker-item").forEach(item => {
+            item.classList.remove("is-updated");
+        });
+    }, 1300);
+
+    const strip = document.getElementById("marketIndicesStrip");
+    if (strip) {
+        strip.classList.add("strip-updated-pulse");
+        setTimeout(() => strip.classList.remove("strip-updated-pulse"), 1200);
+    }
+}
+
+async function refreshMarketIndices() {
+    const stripBtn = document.getElementById("stripRefreshBtn");
+    if (stripBtn) stripBtn.classList.add("is-spinning");
+    showToast("Refreshing live market indices from NSE / Yahoo Finance...", "info");
+    try {
+        await loadMarketIndices(true);
+        await loadMarketStats();
+        if (typeof syncNavCapital === "function") syncNavCapital();
+        showToast("Market indices updated with latest live prices ✓", "success");
+    } catch (e) {
+        showToast("Failed to refresh market indices.", "warning");
+    } finally {
+        if (stripBtn) stripBtn.classList.remove("is-spinning");
+    }
+}
+
 // Loads market stats and sector breakdown in Universe Tab
 async function loadMarketStats() {
     try {
@@ -2514,10 +2722,20 @@ async function loadMarketStats() {
         if (statsLatestDate) {
             statsLatestDate.textContent = data.newest_cached_date || "Live Feed";
         }
+        const asOfText = document.getElementById("asOfDateText");
+        if (asOfText && data.newest_cached_date) {
+            asOfText.textContent = `Live: ${data.newest_cached_date}`;
+        }
 
         const statCachedTickers = document.getElementById("statCachedTickers");
         if (statCachedTickers) {
             statCachedTickers.textContent = `${data.cached_tickers_count} Tickers Cached`;
+        }
+
+        const navCoverage = document.getElementById("navCoverageDisplay");
+        if (navCoverage) {
+            const total = data.total_universe_stocks || (data.tiers && data.tiers["ALL"]) || 501;
+            navCoverage.textContent = `${total} Stocks`;
         }
 
         const universeSectorsGrid = document.getElementById("universeSectorsGrid");
@@ -2615,15 +2833,19 @@ async function loadMLDashboard(rawTicker) {
             fetch(`/api/ml/qualify?ticker=${encodeURIComponent(ticker)}`),
         ]);
 
+        let regimeData = null;
         if (regimeRes.ok) {
-            const regimeData = await regimeRes.json();
-            renderMLRegime(regimeData);
+            regimeData = await regimeRes.json();
         }
 
         if (qualifyRes.ok) {
             const qualifyData = await qualifyRes.json();
+            // Pass merged regime with stock micro-regime and decoupling
+            const mergedRegime = qualifyData.regime || regimeData || {};
+            renderMLRegime(mergedRegime, cleanSymbol);
             renderMLQualification(qualifyData, cleanSymbol);
         } else {
+            if (regimeData) renderMLRegime(regimeData, cleanSymbol);
             const errJson = await qualifyRes.json().catch(() => ({}));
             showToast(`ML Analysis: ${errJson.detail || "Could not analyze stock"}`, "warning");
         }
@@ -2638,41 +2860,80 @@ async function loadMLDashboard(rawTicker) {
     }
 }
 
-function renderMLRegime(data) {
+function renderMLRegime(data, cleanSymbol) {
     if (!data) return;
 
-    const badge = document.getElementById("mlRegimeBadge");
+    const assetBadge = document.getElementById("mlAssetRegimeBadge");
+    const macroBadge = document.getElementById("mlRegimeBadge");
     const desc = document.getElementById("mlRegimeDesc");
     const benchRet = document.getElementById("mlRegimeBenchRet");
-    const benchVol = document.getElementById("mlRegimeBenchVol");
+    const stockAlpha = document.getElementById("mlStockAlpha");
     const sentiment = document.getElementById("mlRegimeSentiment");
     const barsContainer = document.getElementById("mlRegimeBarsContainer");
     const compatTags = document.getElementById("mlRegimeCompatTags");
+    const decouplingBanner = document.getElementById("mlDecouplingBanner");
+    const decouplingText = document.getElementById("mlDecouplingText");
 
-    if (badge) {
-        badge.textContent = data.name || data.regime_id;
-        badge.className = "regime-status-badge";
-        if (data.sentiment === "BULLISH") badge.classList.add("bullish");
-        else if (data.sentiment === "DEFENSIVE") badge.classList.add("bearish");
+    const micro = data.asset_micro_regime || {};
+    const dec = data.alpha_decoupling || {};
+
+    // 1. Asset Micro-Regime
+    if (assetBadge) {
+        assetBadge.textContent = micro.name || "BULL ACCUMULATION";
+        assetBadge.className = "regime-status-badge";
+        if (micro.sentiment && micro.sentiment.includes("BULLISH")) assetBadge.classList.add("bullish");
+        else if (micro.sentiment === "DEFENSIVE") assetBadge.classList.add("bearish");
+        else assetBadge.classList.add("neutral");
     }
 
-    if (desc) desc.textContent = data.desc || "Market regime evaluation active.";
+    // 2. Macro Benchmark Badge
+    if (macroBadge) {
+        macroBadge.textContent = `MACRO: ${data.name || data.regime_id || "DEFENSIVE"}`;
+        macroBadge.className = "regime-status-badge";
+        if (data.sentiment === "BULLISH") macroBadge.classList.add("bullish");
+        else if (data.sentiment === "DEFENSIVE") macroBadge.classList.add("bearish");
+    }
 
+    // 3. Description
+    if (desc) {
+        desc.textContent = micro.desc || data.desc || "Multi-timeframe regime evaluation active.";
+    }
+
+    // 4. Decoupling Banner
+    if (decouplingBanner) {
+        const isDecoupled = dec.is_decoupled || (dec.alpha_20d !== undefined && dec.alpha_20d > 4.0);
+        if (isDecoupled) {
+            decouplingBanner.style.display = "flex";
+            if (decouplingText) {
+                decouplingText.textContent = dec.summary || `${cleanSymbol || "Asset"} demonstrates powerful independent relative strength over broad benchmark.`;
+            }
+        } else {
+            decouplingBanner.style.display = "none";
+        }
+    }
+
+    // 5. Alpha vs NIFTY
+    if (stockAlpha) {
+        const alphaVal = dec.alpha_20d !== undefined ? dec.alpha_20d : 0;
+        stockAlpha.textContent = `${alphaVal >= 0 ? "+" : ""}${Number(alphaVal).toFixed(1)}%`;
+        stockAlpha.style.color = alphaVal >= 0 ? "var(--color-positive)" : "var(--color-negative)";
+    }
+
+    // 6. Benchmark Return
     if (benchRet) {
         const retVal = data.benchmark_ret_20d !== undefined ? data.benchmark_ret_20d : 0;
-        benchRet.textContent = `${retVal >= 0 ? "+" : ""}${retVal.toFixed(2)}%`;
+        benchRet.textContent = `${retVal >= 0 ? "+" : ""}${Number(retVal).toFixed(2)}%`;
         benchRet.style.color = retVal >= 0 ? "var(--color-positive)" : "var(--color-negative)";
     }
 
-    if (benchVol) {
-        benchVol.textContent = `${(data.benchmark_vol_20d || 0).toFixed(1)}%`;
-    }
-
+    // 7. Sentiment
     if (sentiment) {
-        sentiment.textContent = data.sentiment || "NEUTRAL";
-        sentiment.style.color = data.sentiment === "BULLISH" ? "var(--color-positive)" : data.sentiment === "DEFENSIVE" ? "var(--color-negative)" : "var(--color-warning)";
+        const sVal = micro.sentiment || data.sentiment || "BULLISH";
+        sentiment.textContent = sVal;
+        sentiment.style.color = sVal.includes("BULLISH") ? "var(--color-positive)" : sVal === "DEFENSIVE" ? "var(--color-negative)" : "var(--color-warning)";
     }
 
+    // 8. Cluster Bars
     if (barsContainer && data.probabilities) {
         const colorMap = {
             "BULL_LOW_VOL": "#00c076",
@@ -2704,8 +2965,12 @@ function renderMLRegime(data) {
         }).join("");
     }
 
+    // 9. Compatible Strategy Tags
     if (compatTags) {
-        const strats = data.compatible_strategies || [];
+        const strats = (micro.compatible_strategies && micro.compatible_strategies.length > 0)
+            ? micro.compatible_strategies
+            : (data.compatible_strategies || []);
+
         if (strats.length > 0) {
             compatTags.innerHTML = strats.map(s => `<span class="compat-tag">${s}</span>`).join("");
         } else {
@@ -2781,6 +3046,26 @@ function renderMLQualification(data, cleanSymbol) {
         }
     }
 
+    // Dynamic Triple Barriers
+    const b = q.barriers || {};
+    const barrierTarget = document.getElementById("mlBarrierTarget");
+    const barrierStop = document.getElementById("mlBarrierStop");
+    const barrierStopLbl = document.getElementById("mlBarrierStopLbl");
+    const barrierHorizon = document.getElementById("mlBarrierHorizon");
+
+    if (barrierTarget && b.target_pct !== undefined) {
+        barrierTarget.textContent = `+${Number(b.target_pct).toFixed(1)}% Profit`;
+    }
+    if (barrierStop && b.stop_pct !== undefined) {
+        barrierStop.textContent = `-${Number(b.stop_pct).toFixed(1)}% Stop`;
+    }
+    if (barrierStopLbl && b.stop_type) {
+        barrierStopLbl.textContent = `Lower Barrier (${b.stop_type})`;
+    }
+    if (barrierHorizon && b.vertical_days !== undefined) {
+        barrierHorizon.textContent = `${b.vertical_days} Sessions`;
+    }
+
     // 4. Feature Attributions (Tailwinds vs Headwinds)
     const tailwindsList = document.getElementById("mlTailwindsList");
     const headwindsList = document.getElementById("mlHeadwindsList");
@@ -2854,6 +3139,7 @@ function renderMLQualification(data, cleanSymbol) {
 
 // Expose helpers globally
 window.switchTab = switchTab;
+window.triggerLiveSync = triggerLiveSync;
 window.handleRefreshStock = handleRefreshStock;
 window.selectSectorFromUniverse = selectSectorFromUniverse;
 window.syncTopLeaders = syncTopLeaders;
@@ -2868,6 +3154,10 @@ window.saveStrategyFromModal = saveStrategyFromModal;
 window.handleResetStrategy = handleResetStrategy;
 window.handleDeleteStrategy = handleDeleteStrategy;
 window.loadMLDashboard = loadMLDashboard;
+window.loadMarketIndices = loadMarketIndices;
+window.renderMarketIndices = renderMarketIndices;
+window.refreshMarketIndices = refreshMarketIndices;
+window.refreshMarketIndicesActual = refreshMarketIndices;
 
 document.addEventListener("DOMContentLoaded", init);
 

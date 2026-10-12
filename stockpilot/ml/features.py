@@ -177,8 +177,9 @@ class FeatureEngineeringPipeline:
 
         close = df["Close"]
 
-        # ── 1. Fractionally Differentiated Prices (Memory preserved) ──
-        frac_close = fractional_differentiation(close, d=self.frac_d)
+        # ── 1. Fractionally Differentiated Prices (Scale-invariant on log price) ──
+        log_close = np.log(np.maximum(close.values, 1e-4))
+        frac_close = fractional_differentiation(pd.Series(log_close, index=close.index, name="log_close"), d=self.frac_d)
         features["frac_diff_price"] = frac_close.values
 
         # ── 2. Standard Returns over Horizons ──

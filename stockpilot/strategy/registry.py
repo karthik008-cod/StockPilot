@@ -185,6 +185,51 @@ STRATEGY_4 = StrategyDefinition(
     ],
 )
 
+# ─────────────────────────────────────────────────────────────────────────────
+# STRATEGY 5: MOMENTUM SUPER-TREND RUNNER (HIGH-ALPHA BREAKOUT)
+# ─────────────────────────────────────────────────────────────────────────────
+STRATEGY_5 = StrategyDefinition(
+    strategy_id="MOMENTUM_SUPER_TREND_RUNNER",
+    name="Momentum Super-Trend Runner",
+    description="Detects high-conviction secular momentum leaders and multibagger super-trend runners (Monthly RSI > 60, Weekly RSI > 60, Daily RSI >= 55).",
+    universe="NIFTY 500",
+    purpose=(
+        "Identifies explosive multi-timeframe momentum leaders and multibagger super-trend runners "
+        "(Monthly > 60, Weekly > 60, Daily >= 55) showing powerful institutional accumulation."
+    ),
+    required_timeframes=[Timeframe.MONTHLY, Timeframe.WEEKLY, Timeframe.DAILY],
+    required_indicators=["RSI"],
+    conditions=[
+        Condition(
+            timeframe=Timeframe.MONTHLY,
+            indicator="RSI",
+            period=14,
+            operator=Operator.GT,
+            value=60.0,
+            shift=0,
+            description="Monthly RSI(14) > 60",
+        ),
+        Condition(
+            timeframe=Timeframe.WEEKLY,
+            indicator="RSI",
+            period=14,
+            operator=Operator.GT,
+            value=60.0,
+            shift=0,
+            description="Weekly RSI(14) > 60",
+        ),
+        Condition(
+            timeframe=Timeframe.DAILY,
+            indicator="RSI",
+            period=14,
+            operator=Operator.GTE,
+            value=55.0,
+            shift=0,
+            description="Daily RSI(14) >= 55",
+        ),
+    ],
+)
+
 import copy
 import json
 import logging
@@ -202,6 +247,7 @@ STRATEGY_REGISTRY: Dict[str, StrategyDefinition] = {
     STRATEGY_2.strategy_id: copy.deepcopy(STRATEGY_2),
     STRATEGY_3.strategy_id: copy.deepcopy(STRATEGY_3),
     STRATEGY_4.strategy_id: copy.deepcopy(STRATEGY_4),
+    STRATEGY_5.strategy_id: copy.deepcopy(STRATEGY_5),
 }
 
 # Immutable reference defaults for resetting
@@ -210,6 +256,7 @@ DEFAULT_STRATEGIES: Dict[str, StrategyDefinition] = {
     STRATEGY_2.strategy_id: copy.deepcopy(STRATEGY_2),
     STRATEGY_3.strategy_id: copy.deepcopy(STRATEGY_3),
     STRATEGY_4.strategy_id: copy.deepcopy(STRATEGY_4),
+    STRATEGY_5.strategy_id: copy.deepcopy(STRATEGY_5),
 }
 
 PERSISTENCE_FILE = Path("data/custom_strategies.json")

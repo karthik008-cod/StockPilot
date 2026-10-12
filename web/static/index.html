@@ -8,7 +8,23 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="/static/style.css?v=20261012_indices_live">
+    <script>
+        function triggerLiveSync(ticker) {
+            if (window._triggerLiveSyncInternal) {
+                return window._triggerLiveSyncInternal(ticker);
+            } else if (window.triggerLiveSyncActual) {
+                return window.triggerLiveSyncActual(ticker);
+            }
+        }
+        function refreshMarketIndices() {
+            if (window.refreshMarketIndicesActual) {
+                return window.refreshMarketIndicesActual();
+            } else if (window.loadMarketIndices) {
+                return window.loadMarketIndices(true);
+            }
+        }
+    </script>
 </head>
 <body>
 
@@ -41,6 +57,16 @@
                     <span class="nav-capital-lbl">Capital:</span>
                     <span class="nav-capital-val" id="navCapitalDisplay">₹1,00,000</span>
                 </div>
+                <button type="button" class="btn-live-sync" id="globalLiveSyncBtn" onclick="triggerLiveSync()" title="Fetch and sync live market data up to date (NSE / Yahoo Finance)">
+                    <svg class="sync-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.19"></path>
+                    </svg>
+                    <span id="syncBtnText">Get Live Data</span>
+                </button>
+                <div class="data-as-of-badge" id="dataAsOfBadge" title="Latest available trading date in cache">
+                    <span class="as-of-dot"></span>
+                    <span id="asOfDateText">Live Data</span>
+                </div>
                 <div class="nav-status">
                     <span class="status-dot live"></span>
                     <span class="status-text" id="liveFeedStatus">NSE Live Feed</span>
@@ -49,43 +75,46 @@
         </header>
 
         <!-- Dhan-Style Market Indices Ticker Strip -->
-        <div class="market-indices-strip" id="marketIndicesStrip">
-            <div class="indices-strip-left">
-                <div class="index-ticker-item">
+        <div class="market-indices-strip" id="marketIndicesStrip" title="Market Indices Strip - Auto-refreshed live with NSE / Yahoo Finance">
+            <div class="indices-strip-left" id="indicesStripLeft">
+                <div class="index-ticker-item" data-index-sym="NIFTY 50">
                     <span class="index-sym">NIFTY 50</span>
-                    <span class="index-ltp">24,812.30</span>
-                    <span class="index-chg negative">-371.25 (-1.64%) ↘</span>
+                    <span class="index-ltp" id="idx_ltp_nifty50">22,363.35</span>
+                    <span class="index-chg negative" id="idx_chg_nifty50">-157.10 (-0.70%) ↘</span>
                 </div>
-                <div class="index-ticker-item">
+                <div class="index-ticker-item" data-index-sym="NIFTY NEXT 50">
                     <span class="index-sym">NIFTY NEXT 50</span>
-                    <span class="index-ltp">67,614.50</span>
-                    <span class="index-chg negative">-1,789.50 (-2.58%) ↘</span>
+                    <span class="index-ltp" id="idx_ltp_niftynext50">68,351.70</span>
+                    <span class="index-chg positive" id="idx_chg_niftynext50">+185.00 (+0.27%) ↗</span>
                 </div>
-                <div class="index-ticker-item">
+                <div class="index-ticker-item" data-index-sym="BANK NIFTY">
                     <span class="index-sym">BANK NIFTY</span>
-                    <span class="index-ltp">54,515.05</span>
-                    <span class="index-chg negative">-540.50 (-0.98%) ↘</span>
+                    <span class="index-ltp" id="idx_ltp_banknifty">54,918.00</span>
+                    <span class="index-chg negative" id="idx_chg_banknifty">-338.65 (-0.61%) ↘</span>
                 </div>
-                <div class="index-ticker-item">
+                <div class="index-ticker-item" data-index-sym="INDIA VIX">
                     <span class="index-sym">INDIA VIX</span>
-                    <span class="index-ltp">15.28</span>
-                    <span class="index-chg positive">+1.39 (+10.01%) ↗</span>
+                    <span class="index-ltp" id="idx_ltp_indiavix">15.25</span>
+                    <span class="index-chg positive" id="idx_chg_indiavix">+0.87 (+6.07%) ↗</span>
                 </div>
-                <div class="index-ticker-item">
+                <div class="index-ticker-item" data-index-sym="NIFTY 500">
                     <span class="index-sym">NIFTY 500</span>
-                    <span class="index-ltp">23,140.80</span>
-                    <span class="index-chg negative">-280.10 (-1.20%) ↘</span>
+                    <span class="index-ltp" id="idx_ltp_nifty500">21,822.75</span>
+                    <span class="index-chg negative" id="idx_chg_nifty500">-43.90 (-0.20%) ↘</span>
                 </div>
             </div>
             <div class="indices-strip-right">
                 <div class="index-quick-stat">
                     <span class="iqs-label">Max Risk:</span>
-                    <span class="iqs-value" id="navMaxLossDisplay">₹2,000</span>
+                    <span class="iqs-value" id="navMaxLossDisplay">₹2,000.00</span>
                 </div>
                 <div class="index-quick-stat">
                     <span class="iqs-label">Coverage:</span>
-                    <span class="iqs-value">501 Stocks</span>
+                    <span class="iqs-value" id="navCoverageDisplay">501 Stocks</span>
                 </div>
+                <button type="button" class="btn-strip-refresh" id="stripRefreshBtn" title="Refresh Live Indices (NSE / Yahoo Finance)" onclick="refreshMarketIndices()">
+                    <span class="strip-refresh-icon">↻</span>
+                </button>
             </div>
         </div>
 
@@ -266,8 +295,11 @@
                         </div>
 
                         <div class="toolbar-actions">
-                            <button id="refreshBtn" class="btn btn-secondary" title="Fetch latest live market data" disabled>
-                                Refresh Data
+                            <button id="refreshBtn" class="btn btn-secondary btn-sync-stock" onclick="triggerLiveSync()" title="Fetch latest live market data for selected stock">
+                                <svg class="sync-icon-sm" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 5px;">
+                                    <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.19"></path>
+                                </svg>
+                                <span id="refreshBtnText">Get Live Data</span>
                             </button>
                             <button id="exportCsvBtn" class="btn btn-primary" title="Export CSV" disabled>
                                 Export CSV
@@ -1085,6 +1117,12 @@
                             <button type="button" id="btnRunMLAnalysis" onclick="loadMLDashboard(document.getElementById('mlTickerInput').value)" class="btn btn-primary btn-sm">
                                 <span>Evaluate Model</span>
                             </button>
+                            <button type="button" id="btnSyncMLTicker" onclick="triggerLiveSync(document.getElementById('mlTickerInput').value)" class="btn btn-secondary btn-sm btn-sync-ml" title="Sync live candle data for this ticker">
+                                <svg class="sync-icon-xs" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;">
+                                    <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.19"></path>
+                                </svg>
+                                <span>Get Live Data</span>
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -1101,38 +1139,48 @@
             <!-- Top Grid: Macro Regime & Trade Qualification -->
             <div class="ml-top-grid">
                 
-                <!-- Card 1: GMM Market Regime Radar -->
+                <!-- Card 1: Asset Micro-Regime & GMM Market Radar -->
                 <div class="ml-card regime-radar-card">
                     <div class="ml-card-header">
                         <div>
-                            <span class="ml-card-tag">UNSUPERVISED GMM</span>
-                            <h3 class="ml-card-title">Macro Market Regime</h3>
+                            <span class="ml-card-tag">ASSET & MACRO CLUSTERING</span>
+                            <h3 class="ml-card-title">Regime Radar & Decoupling</h3>
                         </div>
-                        <span class="regime-status-badge" id="mlRegimeBadge">CONSOLIDATION</span>
+                        <div class="regime-badges-group" style="display: flex; gap: 6px; flex-wrap: wrap;">
+                            <span class="regime-status-badge bullish" id="mlAssetRegimeBadge">PARABOLIC SUPER-TREND</span>
+                            <span class="regime-status-badge" id="mlRegimeBadge" style="font-size: 0.68rem; opacity: 0.85;">MACRO: BENCHMARK</span>
+                        </div>
                     </div>
 
                     <div class="regime-summary-box">
                         <div class="regime-summary-desc" id="mlRegimeDesc">
-                            Range-bound contraction with compressed ATR. Ideal for deep oversold reversals.
+                            Exceptional multi-timeframe trend momentum. Strong institutional conviction.
                         </div>
+                        
+                        <!-- Decoupling Alert Banner -->
+                        <div id="mlDecouplingBanner" class="ml-decoupling-banner" style="display: flex; align-items: center; gap: 8px; padding: 7px 10px; background: rgba(0, 192, 118, 0.1); border: 1px solid rgba(0, 192, 118, 0.25); border-radius: 6px; margin: 8px 0; font-size: 0.78rem; color: #00c076;">
+                            <span style="font-weight: 700; text-transform: uppercase; font-size: 0.7rem; background: rgba(0, 192, 118, 0.2); padding: 2px 6px; border-radius: 4px;">ALPHA RUNNER</span>
+                            <span id="mlDecouplingText">Stock is breaking out independently of broader market benchmark consolidation.</span>
+                        </div>
+
                         <div class="regime-meta-row">
                             <div class="regime-meta-col">
+                                <span class="meta-label">Alpha vs NIFTY (20D)</span>
+                                <span class="meta-val positive" id="mlStockAlpha">+19.3%</span>
+                            </div>
+                            <div class="regime-meta-col">
                                 <span class="meta-label">Benchmark (20D Ret)</span>
-                                <span class="meta-val" id="mlRegimeBenchRet">+1.85%</span>
+                                <span class="meta-val" id="mlRegimeBenchRet">-4.75%</span>
                             </div>
                             <div class="regime-meta-col">
-                                <span class="meta-label">Annual Realized Vol</span>
-                                <span class="meta-val" id="mlRegimeBenchVol">13.4%</span>
-                            </div>
-                            <div class="regime-meta-col">
-                                <span class="meta-label">Market Bias</span>
-                                <span class="meta-val" id="mlRegimeSentiment">NEUTRAL</span>
+                                <span class="meta-label">Asset Bias</span>
+                                <span class="meta-val positive" id="mlRegimeSentiment">STRONG BULLISH</span>
                             </div>
                         </div>
                     </div>
 
                     <div class="regime-dist-wrap">
-                        <h4 class="sub-card-title">GMM Latent Cluster Distribution</h4>
+                        <h4 class="sub-card-title">Benchmark GMM Latent Cluster Distribution</h4>
                         <div class="regime-prob-bars" id="mlRegimeBarsContainer">
                             <!-- Injected dynamically: Bull Low-Vol, Bull High-Vol, Consolidation, Bear/High-Risk -->
                         </div>
@@ -1141,7 +1189,7 @@
                     <div class="regime-compatibility-box">
                         <span class="compat-label">Regime Compatible Strategies:</span>
                         <div class="compat-tags-wrap" id="mlRegimeCompatTags">
-                            <span class="compat-tag">MONTHLY_RSI_40_43_ZONE</span>
+                            <span class="compat-tag">MOMENTUM_SUPER_TREND_RUNNER</span>
                         </div>
                     </div>
                 </div>
@@ -1153,18 +1201,18 @@
                             <span class="ml-card-tag">SUPERVISED META-MODEL</span>
                             <h3 class="ml-card-title">Trade Qualification & Sizing</h3>
                         </div>
-                        <span class="qualification-badge" id="mlQualifyBadge">APPROVED</span>
+                        <span class="qualification-badge" id="mlQualifyBadge">APPROVED • MOMENTUM RUNNER</span>
                     </div>
 
                     <div class="qualify-metric-grid">
                         <div class="qualify-metric-cell highlight-cell">
                             <span class="qm-label">Calibrated Win Probability</span>
                             <div class="qm-value-row">
-                                <span class="qm-big-val" id="mlWinProbVal">58.0%</span>
+                                <span class="qm-big-val" id="mlWinProbVal">75.0%</span>
                                 <span class="qm-sub-tag" id="mlThresholdTag">Gate: ≥55.0%</span>
                             </div>
                             <div class="meter-bar-track">
-                                <div class="meter-bar-fill" id="mlWinProbBar" style="width: 58%;"></div>
+                                <div class="meter-bar-fill" id="mlWinProbBar" style="width: 75%;"></div>
                                 <div class="meter-threshold-line" title="55% Cutoff" style="left: 55%;"></div>
                             </div>
                         </div>
@@ -1172,10 +1220,10 @@
                         <div class="qualify-metric-cell">
                             <span class="qm-label">Half-Kelly Sizing Multiplier</span>
                             <div class="qm-value-row">
-                                <span class="qm-big-val" id="mlKellyMultVal">0.18×</span>
+                                <span class="qm-big-val" id="mlKellyMultVal">0.20×</span>
                                 <span class="qm-sub-tag">Conservative Risk</span>
                             </div>
-                            <span class="qm-footnote" id="mlKellyCapitalNote">Allocates ₹18,000 on ₹1,00,000 account</span>
+                            <span class="qm-footnote" id="mlKellyCapitalNote">Allocates ₹20,000 on ₹1,00,000 account</span>
                         </div>
                     </div>
 
@@ -1191,15 +1239,15 @@
                     <div class="triple-barrier-meta">
                         <div class="tb-item">
                             <span class="tb-lbl">Upper Barrier (Target)</span>
-                            <span class="tb-val positive">+6.0% Profit</span>
+                            <span class="tb-val positive" id="mlBarrierTarget">+12.0% Profit</span>
                         </div>
                         <div class="tb-item">
-                            <span class="tb-lbl">Lower Barrier (Stop)</span>
-                            <span class="tb-val negative">-3.0% Stop</span>
+                            <span class="tb-lbl" id="mlBarrierStopLbl">Lower Barrier (Trailing Stop)</span>
+                            <span class="tb-val negative" id="mlBarrierStop">-7.2% Stop</span>
                         </div>
                         <div class="tb-item">
                             <span class="tb-lbl">Vertical Barrier (Time)</span>
-                            <span class="tb-val">15 Sessions</span>
+                            <span class="tb-val" id="mlBarrierHorizon">21 Sessions</span>
                         </div>
                     </div>
                 </div>
@@ -1416,6 +1464,6 @@
         </div>
     </div>
 
-    <script src="/static/app.js"></script>
+    <script src="/static/app.js?v=20261012_indices_live"></script>
 </body>
 </html>

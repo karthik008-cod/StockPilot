@@ -181,8 +181,23 @@ class MLEngine:
             "vol_ratio_5_20": round(float(latest_feature_row.get("vol_ratio_5_20", 1.0)), 2),
         }
 
-        # 5. Market Regime Context
+        # 5. Market Regime Context & Decoupling
         regime_ctx = self.get_market_regime()
+        alpha_val = float(latest_feature_row.get("excess_return_20d", 0.0))
+        micro_regime = qualification.get("micro_regime", {})
+
+        regime_ctx["asset_micro_regime"] = micro_regime
+        regime_ctx["alpha_decoupling"] = {
+            "stock_ticker": clean_ticker,
+            "alpha_20d": round(alpha_val, 2),
+            "hurst_exponent": round(hurst_val, 2),
+            "is_decoupled": alpha_val > 5.0 and regime_ctx.get("sentiment") in ["DEFENSIVE", "NEUTRAL"],
+            "summary": (
+                f"Alpha Leader Decoupling: {clean_ticker.replace('.NS', '')} demonstrates powerful independent relative strength (+{alpha_val:.1f}% alpha over NIFTY), breaking out bullishly against broad benchmark headwinds."
+                if alpha_val > 5.0
+                else "Asset dynamics aligned with broader market benchmark."
+            )
+        }
 
         return {
             "ticker": clean_ticker,

@@ -54,12 +54,75 @@ REGIME_DEFINITIONS = {
     "BEAR_HIGH_RISK": {
         "name": "Distribution / Elevated Risk",
         "desc": "Elevated market downside or extreme volatility. Strict discipline: No trades > Loss trades.",
-        "compatible_strategies": [],
+        "compatible_strategies": ["HIGH_ALPHA_RELATIVE_STRENGTH", "VOLATILITY_TRAILING_STOP", "CAPITAL_PRESERVATION"],
         "sentiment": "DEFENSIVE",
         "risk_level": "HIGH",
         "color": "#F6465D",
     },
 }
+
+
+def detect_stock_micro_regime(feature_row: pd.Series) -> Dict[str, Any]:
+    """Detects asset-specific micro-regime independent of broad market benchmark index."""
+    dist_200 = float(feature_row.get("dist_ema_200_pct", 0.0))
+    dist_50 = float(feature_row.get("dist_ema_50_pct", 0.0))
+    w_rsi = float(feature_row.get("weekly_rsi_14", 50.0))
+    m_rsi = float(feature_row.get("monthly_rsi_14", 50.0))
+    hurst = float(feature_row.get("hurst_exponent", 0.50))
+    alpha = float(feature_row.get("excess_return_20d", 0.0))
+    vol = float(feature_row.get("natr_14", 2.0))
+
+    # 1. Parabolic / High-Momentum Secular Runner
+    if (dist_200 > 25.0 or m_rsi > 78.0) and w_rsi > 62.0 and hurst > 0.65:
+        return {
+            "micro_regime_id": "PARABOLIC_SUPER_TREND",
+            "name": "Parabolic Super-Trend (Alpha Leader)",
+            "desc": f"Exceptional multi-timeframe trend momentum with +{alpha:.1f}% alpha over NIFTY. Strong institutional conviction.",
+            "sentiment": "STRONG BULLISH",
+            "risk_level": "PARABOLIC" if m_rsi > 85.0 else "MODERATE",
+            "color": "#00C076",
+            "compatible_strategies": ["MOMENTUM_BREAKOUT", "HIGH_ALPHA_TREND_RIDE", "VOLATILITY_TRAILING_STOP"],
+            "parabolic_extension": m_rsi > 85.0,
+        }
+
+    # 2. Healthy Bull Trend Accumulation
+    if dist_200 > 0.0 and w_rsi >= 50.0:
+        return {
+            "micro_regime_id": "BULL_ACCUMULATION",
+            "name": "Bull Trend (Institutional Accumulation)",
+            "desc": "Healthy structural uptrend trading cleanly above 200 EMA with positive higher-timeframe momentum.",
+            "sentiment": "BULLISH",
+            "risk_level": "LOW",
+            "color": "#00C076",
+            "compatible_strategies": ["HTF_BULLISH_DAILY_MOMENTUM_ZONE", "HTF_BULLISH_DEEP_DAILY_PULLBACK"],
+            "parabolic_extension": False,
+        }
+
+    # 3. Consolidation / Range Bound Squeeze
+    if abs(dist_50) < 6.0 and 38.0 <= w_rsi <= 58.0:
+        return {
+            "micro_regime_id": "CONSOLIDATION_RANGE",
+            "name": "Consolidation / Range Squeeze",
+            "desc": "Volatility contraction coiling between moving averages. Awaiting directional expansion catalyst.",
+            "sentiment": "NEUTRAL",
+            "risk_level": "LOW",
+            "color": "#F0B90B",
+            "compatible_strategies": ["RANGE_BOUND_SWING", "BREAKOUT_WATCH"],
+            "parabolic_extension": False,
+        }
+
+    # 4. Bearish Distribution / Downtrend
+    return {
+        "micro_regime_id": "BEARISH_DISTRIBUTION",
+        "name": "Bearish Distribution / Downtrend",
+        "desc": "Trading below 200-day EMA structural hurdle with negative momentum and persistent selling pressure.",
+        "sentiment": "DEFENSIVE",
+        "risk_level": "HIGH",
+        "color": "#F6465D",
+        "compatible_strategies": ["CAPITAL_PRESERVATION", "OVERSOLD_REVERSAL_WATCH"],
+        "parabolic_extension": False,
+    }
+
 
 
 class MarketRegimeDetector:
@@ -227,70 +290,134 @@ class MetaLabelClassifier:
         clean_features = [f for f in self.FEATURE_NAMES if f in feature_row.index]
         X_vec = feature_row[clean_features].to_frame().T.astype(float)
 
+        w_rsi = float(feature_row.get("weekly_rsi_14", 50.0))
+        d_rsi = float(feature_row.get("daily_rsi_14", 50.0))
+        m_rsi = float(feature_row.get("monthly_rsi_14", 50.0))
+        hurst = float(feature_row.get("hurst_exponent", 0.50))
+        vol = float(feature_row.get("natr_14", 2.0))
+        vol_ratio = float(feature_row.get("vol_ratio_5_20", 1.0))
+        dist_50 = float(feature_row.get("dist_ema_50_pct", 0.0))
+        dist_200 = float(feature_row.get("dist_ema_200_pct", 0.0))
+        ema_ratio = float(feature_row.get("ema_50_200_ratio", 1.0))
+        vol_shock = float(feature_row.get("volume_shock", 1.0))
+        alpha_20 = float(feature_row.get("excess_return_20d", 0.0))
+
+        # Determine asset-specific micro-regime
+        micro_regime = detect_stock_micro_regime(feature_row)
+
+        # Baseline probability from continuous institutional multi-factor model
+        z = 0.0
+
+        # 1. Structural Trend Support (Above 200 EMA & Golden Cross)
+        if dist_200 > 0:
+            z += min(0.65, dist_200 * 0.018)
+        else:
+            z += max(-0.85, dist_200 * 0.05)  # Heavy penalty for trading below 200 EMA
+        z += (ema_ratio - 1.0) * 1.6
+
+        # 2. Multi-Timeframe Momentum (Weekly & Monthly RSI)
+        z += (w_rsi - 50.0) * 0.028
+        if m_rsi > 60.0:
+            z += min(0.50, (m_rsi - 50.0) * 0.015)
+        elif m_rsi < 45.0:
+            z -= (50.0 - m_rsi) * 0.02
+
+        # 3. Daily RSI Tactical Momentum Zone
+        if 48.0 <= d_rsi <= 68.0:
+            z += 0.35  # Clean bullish momentum continuation
+        elif 38.0 <= d_rsi < 48.0 and dist_200 > 0:
+            z += 0.28  # Uptrend pullback reload
+        elif d_rsi < 35.0 and dist_200 < 0:
+            z -= 0.40  # Downtrend breakdown
+
+        # 4. Trend Persistence (Hurst Exponent)
+        if hurst > 0.60:
+            z += (hurst - 0.50) * 2.2
+        elif hurst < 0.45:
+            z -= (0.50 - hurst) * 1.8
+
+        # 5. Relative Strength / Alpha over Benchmark
+        z += float(np.clip(alpha_20 * 0.035, -0.6, 0.75))
+
+        # 6. Volume Surge Confirmation
+        if vol_shock > 1.4:
+            z += min(0.40, (vol_shock - 1.0) * 0.18)
+
+        # Convert to calibrated probability
+        p_factor = float(1.0 / (1.0 + np.exp(-z)))
+        p_factor = float(np.clip(p_factor, 0.15, 0.92))
+
+        # Prior-normalize tree probability if trained
+        # In 2:1 triple barrier labeling, the empirical population base-rate is ~33%.
+        # Prior odds adjustment maps the 33% base-rate to an unbiased 50% neutral decision boundary.
         if self.is_trained and self.calibrated_model is not None:
             probs = self.calibrated_model.predict_proba(X_vec)[0]
-            p_success = float(probs[1])
+            raw_p_ml = float(probs[1])
+            # Odds adjustment: (p / 0.33) / (p / 0.33 + (1 - p) / 0.67)
+            odds = (raw_p_ml / 0.33) / ((raw_p_ml / 0.33) + ((1.0 - raw_p_ml) / 0.67) + 1e-7)
+            p_ml_norm = float(np.clip(odds, 0.10, 0.90))
+
+            if micro_regime.get("micro_regime_id") == "PARABOLIC_SUPER_TREND":
+                # In high-alpha parabolic super-trends, prioritize trend persistence and relative strength
+                p_success = 0.25 * p_ml_norm + 0.75 * p_factor
+            else:
+                p_success = 0.40 * p_ml_norm + 0.60 * p_factor
         else:
-            # Continuous multivariate logistic proxy
-            # Computes a continuous log-odds score z based on smooth technical factor deviations
-            w_rsi = float(feature_row.get("weekly_rsi_14", 50.0))
-            d_rsi = float(feature_row.get("daily_rsi_14", 50.0))
-            hurst = float(feature_row.get("hurst_exponent", 0.50))
-            vol = float(feature_row.get("natr_14", 2.0))
-            vol_ratio = float(feature_row.get("vol_ratio_5_20", 1.0))
-            dist_50 = float(feature_row.get("dist_ema_50_pct", 0.0))
-            ema_ratio = float(feature_row.get("ema_50_200_ratio", 1.0))
-            vol_shock = float(feature_row.get("volume_shock", 1.0))
-            alpha_20 = float(feature_row.get("excess_return_20d", 0.0))
+            p_success = p_factor
 
-            # Base log-odds anchored to empirical ~33% prior win rate in triple-barrier labeling
-            z = -0.70
-            # Higher-timeframe weekly momentum alignment
-            z += (w_rsi - 50.0) * 0.025
-            # Daily RSI sweet spot pullbacks / momentum zones (Gaussian radial basis kernels)
-            z += 0.45 * np.exp(-0.5 * ((d_rsi - 42.0) / 4.0) ** 2)
-            z += 0.40 * np.exp(-0.5 * ((d_rsi - 60.5) / 3.5) ** 2)
-            if d_rsi > 75.0:
-                z -= (d_rsi - 75.0) * 0.04
-            # Hurst persistence (H > 0.5 adds trending edge, H < 0.5 penalizes noise)
-            z += (hurst - 0.50) * 1.6
-            # Volatility compression & NATR penalty
-            z -= (vol - 2.0) * 0.12
-            z += (1.0 - vol_ratio) * 0.20
-            # Golden cross / EMA trend alignment
-            z += (ema_ratio - 1.0) * 1.5
-            z += float(np.clip(dist_50 * 0.03, -0.3, 0.3))
-            # Volume confirmation
-            z += float(np.clip((vol_shock - 1.0) * 0.12, -0.2, 0.4))
-            # Alpha over benchmark
-            z += float(np.clip(alpha_20 * 0.02, -0.25, 0.25))
-
-            # Continuous logistic sigmoid: 1 / (1 + exp(-z))
-            p_success = float(1.0 / (1.0 + np.exp(-z)))
-            p_success = float(np.clip(p_success, 0.05, 0.95))
-
+        p_success = float(np.clip(p_success, 0.10, 0.92))
         is_approved = p_success >= self.approval_threshold
         trade_score = int(round(p_success * 100))
 
-        # Kelly Criterion position sizing multiplier: f* = (p*b - q) / b (with 2:1 Reward:Risk)
-        b_ratio = 2.0
+        # Dynamic Volatility-Adjusted Triple Barriers (adapted to stock's actual volatility regime)
+        target_pct = round(float(np.clip(vol * 2.5, 6.0, 18.0)), 1)
+        stop_pct = round(float(np.clip(vol * 1.5, 3.0, 9.0)), 1)
+        is_parabolic = micro_regime.get("micro_regime_id") == "PARABOLIC_SUPER_TREND" or m_rsi > 82.0
+        stop_type = "ATR Trailing Stop" if is_parabolic else "Fixed Stop"
+
+        # Kelly Criterion Sizing with Parabolic Risk Adjustment
+        b_ratio = 2.0  # 2:1 Reward to Risk
         q_fail = 1.0 - p_success
-        kelly_fraction = max(0.0, (p_success * b_ratio - q_fail) / b_ratio)
-        # Half-Kelly for safety
-        safe_kelly_multiplier = round(float(np.clip(kelly_fraction * 0.5, 0.0, 1.5)), 2)
+        base_kelly = max(0.0, (p_success * b_ratio - q_fail) / b_ratio) * 0.5  # Half Kelly
+
+        # Prudent haircut for parabolic overextension (protecting capital from blow-off top drawdowns)
+        haircut = 1.0
+        parabolic_active = False
+        if m_rsi > 82.0:
+            haircut *= 0.65
+            parabolic_active = True
+        if vol > 4.2:
+            haircut *= 0.80
+
+        safe_kelly_multiplier = round(float(np.clip(base_kelly * haircut, 0.0, 1.2)), 2)
+
+        if is_approved:
+            if parabolic_active or is_parabolic:
+                note = f"Approved: Strong secular momentum continuation edge (Win Prob: {p_success*100:.1f}%). Sized at {safe_kelly_multiplier}× Half-Kelly with strict {stop_type} due to Parabolic Extension (Monthly RSI: {m_rsi:.1f})."
+                verdict_str = "APPROVED • MOMENTUM RUNNER"
+            else:
+                note = f"Approved: High-conviction structural setup cleared {self.approval_threshold*100:.0f}% precision gatekeeper."
+                verdict_str = "APPROVED"
+        else:
+            note = f"Disqualified: Win probability ({p_success*100:.1f}%) below {self.approval_threshold*100:.0f}% confidence threshold (No trades > Loss trades)."
+            verdict_str = "DISQUALIFIED"
 
         return {
-            "verdict": "APPROVED" if is_approved else "DISQUALIFIED",
+            "verdict": verdict_str,
             "is_approved": is_approved,
             "success_probability": round(p_success * 100.0, 1),
             "trade_score": trade_score,
             "threshold": round(self.approval_threshold * 100.0, 1),
             "kelly_multiplier": safe_kelly_multiplier,
-            "discipline_note": (
-                "Verified setup cleared precision gatekeeper."
-                if is_approved
-                else "Disqualified: Probability below confidence threshold (No trades > Loss trades)."
-            )
+            "micro_regime": micro_regime,
+            "parabolic_warning": parabolic_active or is_parabolic,
+            "discipline_note": note,
+            "barriers": {
+                "target_pct": target_pct,
+                "stop_pct": stop_pct,
+                "vertical_days": 21,
+                "stop_type": stop_type,
+            },
         }
 
     def save(self, filepath: Optional[Path] = None):

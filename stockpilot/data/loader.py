@@ -403,3 +403,120 @@ class DataLoader:
             logger.warning("Could not cache news to %s: %s", cache_file, e)
 
         return parsed_news
+
+    def sync_live_ohlcv(self, ticker: str) -> Dict[str, Any]:
+        """Fetches latest live/recent trading sessions from Yahoo Finance and merges into parquet cache.
+
+        Guarantees that cached data is completely up-to-date with today's live session,
+        without requiring expensive downloads of full 30-year histories.
+        """
+        safe_ticker = _sanitize_ticker(ticker)
+        cache_file = self.cache_dir / f"{safe_ticker}_ohlcv.parquet"
+        cache_meta_file = self.cache_dir / f"{safe_ticker}_ohlcv.meta.json"
+
+        has_cache = cache_file.exists()
+        old_rows = 0
+        old_last_date = None
+
+        if has_cache:
+            try:
+                old_df = pd.read_parquet(cache_file)
+                old_rows = len(old_df)
+                if not old_df.empty and "Date" in old_df.columns:
+                    old_last_date = str(pd.to_datetime(old_df["Date"]).max().date())
+            except Exception as e:
+                logger.warning("Could not inspect existing cache for %s: %s", ticker, e)
+                has_cache = False
+
+        logger.info("Syncing live OHLCV for %s (existing rows: %d, last date: %s)...", ticker, old_rows, old_last_date)
+        yf_ticker = yf.Ticker(ticker)
+
+        # If cache exists, download recent delta (period='1mo' or '3mo'); if not, download max
+        fetch_period = "1mo" if has_cache else "max"
+        try:
+            new_data = yf_ticker.history(period=fetch_period, auto_adjust=self.config.auto_adjust, actions=True)
+            if new_data.empty and fetch_period != "max":
+                new_data = yf_ticker.history(period="3mo", auto_adjust=self.config.auto_adjust, actions=True)
+            if new_data.empty:
+                new_data = yf_ticker.history(start="1996-01-01", auto_adjust=self.config.auto_adjust, actions=True)
+        except Exception as e:
+            logger.warning("Error fetching live data for %s: %s", ticker, e)
+            return {
+                "ticker": ticker,
+                "status": "error",
+                "message": f"Failed to fetch live data: {e}",
+                "latest_date": old_last_date,
+                "total_rows": old_rows,
+            }
+
+        if new_data.empty:
+            return {
+                "ticker": ticker,
+                "status": "no_data",
+                "message": f"No live market data returned by Yahoo Finance for {ticker}",
+                "latest_date": old_last_date,
+                "total_rows": old_rows,
+            }
+
+        new_data = new_data.reset_index()
+        if "Date" in new_data.columns:
+            new_data["Date"] = pd.to_datetime(new_data["Date"]).dt.tz_localize(None)
+            new_data["Date"] = pd.to_datetime(new_data["Date"].dt.date)
+
+        expected_cols = ["Date", "Open", "High", "Low", "Close", "Adj Close", "Volume", "Dividends", "Stock Splits"]
+        for col in expected_cols:
+            if col not in new_data.columns:
+                if col == "Adj Close" and "Close" in new_data.columns:
+                    new_data["Adj Close"] = new_data["Close"]
+                elif col in ["Dividends", "Stock Splits"]:
+                    new_data[col] = 0.0
+                else:
+                    new_data[col] = np.nan
+
+        new_data = new_data[expected_cols].sort_values("Date").reset_index(drop=True)
+
+        if has_cache:
+            try:
+                old_df = pd.read_parquet(cache_file)
+                old_df["Date"] = pd.to_datetime(old_df["Date"]).dt.tz_localize(None)
+                old_df["Date"] = pd.to_datetime(old_df["Date"].dt.date)
+                merged = pd.concat([old_df, new_data], ignore_index=True)
+                merged = merged.drop_duplicates(subset=["Date"], keep="last").sort_values("Date").reset_index(drop=True)
+                final_df = merged
+            except Exception:
+                final_df = new_data
+        else:
+            final_df = new_data
+
+        try:
+            final_df.to_parquet(cache_file, index=False)
+            new_last_date = str(final_df["Date"].max().date())
+            meta_data = {
+                "ticker": ticker,
+                "is_max_history": True,
+                "first_date": str(final_df["Date"].min().date()),
+                "last_date": new_last_date,
+                "total_rows": len(final_df),
+                "last_synced_at": pd.Timestamp.now().isoformat(),
+            }
+            with open(cache_meta_file, "w", encoding="utf-8") as f:
+                json.dump(meta_data, f, indent=2)
+        except Exception as e:
+            logger.warning("Error saving updated cache file %s: %s", cache_file, e)
+
+        latest_candle = final_df.iloc[-1]
+        new_bars = len(final_df) - old_rows if has_cache else len(final_df)
+
+        return {
+            "ticker": ticker,
+            "status": "success",
+            "latest_date": str(latest_candle["Date"].date() if hasattr(latest_candle["Date"], "date") else latest_candle["Date"]),
+            "latest_close": round(float(latest_candle["Close"]), 2),
+            "latest_open": round(float(latest_candle["Open"]), 2),
+            "latest_high": round(float(latest_candle["High"]), 2),
+            "latest_low": round(float(latest_candle["Low"]), 2),
+            "latest_volume": int(latest_candle["Volume"]),
+            "total_rows": len(final_df),
+            "new_bars_added": max(0, new_bars),
+            "message": f"Data synced up to date: {new_last_date}",
+        }
