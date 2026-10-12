@@ -105,6 +105,12 @@ class FullTradePlan:
     atr_14: float = 0.0
     trend: str = "Neutral"
     position_sizing: dict = field(default_factory=dict)
+    support_1: dict = field(default_factory=dict)
+    support_2: dict = field(default_factory=dict)
+    resistance_1: dict = field(default_factory=dict)
+    resistance_2: dict = field(default_factory=dict)
+    market_regime: dict = field(default_factory=dict)
+    technical_reasoning: str = ""
     exit_rule: str = "Hold position until Target Price or Stop-Loss is reached. No calendar deadline."
     strategy_summary: str = ""
 
@@ -200,6 +206,149 @@ class TradePlanner:
             return "Mild Bearish"
         return "Consolidation"
 
+    def _detect_support_resistance(
+        self,
+        df: pd.DataFrame,
+        cmp: float,
+        atr: float,
+        trade_term: str = "medium",
+    ) -> Dict[str, Any]:
+        """Detects key chart support and resistance levels from price action.
+        
+        Uses:
+          - Multi-bar swing pivot highs and lows tailored to the chosen term lookback
+          - 20-day, 50-day, and 200-day Exponential Moving Averages (EMA)
+          - 52-week highs and multi-week consolidation boundaries
+          - Fibonacci projections (1.272 / 1.618) for all-time-high breakouts
+        """
+        valid_df = df.dropna(subset=["Close", "High", "Low"]).sort_values("Date").reset_index(drop=True)
+        n = len(valid_df)
+
+        lookback = 40 if trade_term == "short" else (100 if trade_term == "medium" else 250)
+        lookback = min(lookback, n)
+        sub_df = valid_df.tail(lookback).reset_index(drop=True)
+        m = len(sub_df)
+
+        pivot_w = 3 if trade_term == "short" else (5 if trade_term == "medium" else 8)
+        highs = sub_df["High"].values
+        lows = sub_df["Low"].values
+
+        pivot_highs: List[float] = []
+        pivot_lows: List[float] = []
+
+        for i in range(pivot_w, m - pivot_w):
+            if all(highs[i] >= highs[i - k] for k in range(1, pivot_w + 1)) and \
+               all(highs[i] >= highs[i + k] for k in range(1, pivot_w + 1)):
+                pivot_highs.append(float(highs[i]))
+
+            if all(lows[i] <= lows[i - k] for k in range(1, pivot_w + 1)) and \
+               all(lows[i] <= lows[i + k] for k in range(1, pivot_w + 1)):
+                pivot_lows.append(float(lows[i]))
+
+        if m >= 20:
+            pivot_highs.append(float(highs[-20:].max()))
+            pivot_lows.append(float(lows[-20:].min()))
+
+        if n >= 150:
+            pivot_highs.append(float(valid_df["High"].tail(250).max()))
+
+        # Moving average levels
+        close_s = valid_df["Close"]
+        ema_20 = float(close_s.ewm(span=20).mean().iloc[-1])
+        ema_50 = float(close_s.ewm(span=50).mean().iloc[-1]) if n >= 50 else ema_20
+        ema_200 = float(close_s.ewm(span=200).mean().iloc[-1]) if n >= 150 else None
+
+        # Supports (< CMP)
+        supp_candidates = []
+        for pl in pivot_lows:
+            if pl < cmp * 0.998:
+                supp_candidates.append((pl, "Swing Low Support"))
+
+        if ema_20 < cmp * 0.995:
+            supp_candidates.append((ema_20, "20 EMA Dynamic Support"))
+        if ema_50 < cmp * 0.995:
+            supp_candidates.append((ema_50, "50 EMA Trend Support"))
+        if ema_200 and ema_200 < cmp * 0.995:
+            supp_candidates.append((ema_200, "200 EMA Institutional Floor"))
+
+        supp_candidates.sort(key=lambda x: x[0], reverse=True)
+        clustered_supp = []
+        for price, label in supp_candidates:
+            if not clustered_supp:
+                clustered_supp.append((price, label))
+            elif abs(price - clustered_supp[-1][0]) / max(clustered_supp[-1][0], 1.0) > 0.012:
+                clustered_supp.append((price, label))
+
+        s1_price = clustered_supp[0][0] if len(clustered_supp) >= 1 else cmp - 1.2 * atr
+        s1_type = clustered_supp[0][1] if len(clustered_supp) >= 1 else "ATR Volatility Support"
+
+        s2_price = clustered_supp[1][0] if len(clustered_supp) >= 2 else (s1_price - 1.5 * atr)
+        s2_type = clustered_supp[1][1] if len(clustered_supp) >= 2 else "Secondary Structural Floor"
+
+        # Resistances (> CMP)
+        res_candidates = []
+        for ph in pivot_highs:
+            if ph > cmp * 1.002:
+                res_candidates.append((ph, "Swing High Resistance"))
+
+        if ema_20 > cmp * 1.005:
+            res_candidates.append((ema_20, "20 EMA Overhead Resistance"))
+        if ema_50 > cmp * 1.005:
+            res_candidates.append((ema_50, "50 EMA Overhead Resistance"))
+        if ema_200 and ema_200 > cmp * 1.005:
+            res_candidates.append((ema_200, "200 EMA Institutional Barrier"))
+
+        res_candidates.sort(key=lambda x: x[0])
+        clustered_res = []
+        for price, label in res_candidates:
+            if not clustered_res:
+                clustered_res.append((price, label))
+            elif abs(price - clustered_res[-1][0]) / max(clustered_res[-1][0], 1.0) > 0.012:
+                clustered_res.append((price, label))
+
+        is_breakout = len(clustered_res) == 0 or (clustered_res[0][0] <= cmp * 1.008)
+        swing_depth = max(cmp - s1_price, 1.5 * atr)
+
+        if is_breakout or len(clustered_res) == 0:
+            r1_price = cmp + 1.272 * swing_depth
+            r1_type = "Fibonacci 1.272 Breakout Target"
+            r2_price = cmp + 1.618 * swing_depth
+            r2_type = "Fibonacci 1.618 Extension Target"
+        elif len(clustered_res) == 1:
+            r1_price = clustered_res[0][0]
+            r1_type = clustered_res[0][1]
+            r2_price = max(r1_price + 1.2 * atr, cmp + 1.618 * swing_depth)
+            r2_type = "Fibonacci 1.618 Extension Target"
+        else:
+            r1_price = clustered_res[0][0]
+            r1_type = clustered_res[0][1]
+            r2_price = clustered_res[1][0]
+            r2_type = clustered_res[1][1]
+
+        return {
+            "support_1": {
+                "price": round(s1_price, 2),
+                "type": s1_type,
+                "distance_pct": round(((s1_price - cmp) / cmp) * 100.0, 2),
+            },
+            "support_2": {
+                "price": round(s2_price, 2),
+                "type": s2_type,
+                "distance_pct": round(((s2_price - cmp) / cmp) * 100.0, 2),
+            },
+            "resistance_1": {
+                "price": round(r1_price, 2),
+                "type": r1_type,
+                "distance_pct": round(((r1_price - cmp) / cmp) * 100.0, 2),
+            },
+            "resistance_2": {
+                "price": round(r2_price, 2),
+                "type": r2_type,
+                "distance_pct": round(((r2_price - cmp) / cmp) * 100.0, 2),
+            },
+            "is_breakout": is_breakout,
+        }
+
     @staticmethod
     def compute_position_sizing(
         entry_price: float,
@@ -272,14 +421,16 @@ class TradePlanner:
         trading_type: str = "swing",
         available_capital: float = 100000.0,
         max_acceptable_loss: float = 2000.0,
+        market_regime: Optional[Dict[str, Any]] = None,
     ) -> FullTradePlan:
-        """Calculates full technical trade setup (Option A: Hold until target or stop-loss).
+        """Calculates full technical trade setup anchored to chart supports, resistances, and market trend.
 
         Args:
             trade_term: "short" (2-15d), "medium" (5-45d), or "long" (20-180d)
             trading_type: "swing", "positional", "investing", "intraday", "futures", "options"
             available_capital: Total capital the user has available for this trade
             max_acceptable_loss: Maximum rupee amount the user is willing to lose
+            market_regime: Optional dictionary of NIFTY trend and INDIA VIX volatility context
         """
         valid_df = df.dropna(subset=["Close", "High", "Low"])
         if valid_df.empty or len(valid_df) < 10:
@@ -299,42 +450,58 @@ class TradePlanner:
         atr = self._calc_atr(clean_df)
         trend = self._calc_trend(clean_df)
 
-        # Recent 20-day swing support and resistance
-        recent_20 = clean_df.tail(20)
-        recent_high = float(recent_20["High"].max())
-        recent_low = float(recent_20["Low"].min())
+        # ─── Detect Chart Support & Resistance Levels ────────────────────────
+        sr = self._detect_support_resistance(clean_df, cmp, atr, trade_term)
+        s1 = sr["support_1"]["price"]
+        s2 = sr["support_2"]["price"]
+        r1 = sr["resistance_1"]["price"]
+        r2 = sr["resistance_2"]["price"]
 
-        # Entry Zone (within +/- 0.5% of CMP or slight pullback)
-        entry_min = round(cmp * 0.995, 2)
+        # Entry Zone (within +/- 0.5% of CMP or slight pullback to support)
+        entry_min = round(max(cmp * 0.995, min(cmp, s1)), 2) if s1 < cmp else round(cmp * 0.995, 2)
         entry_max = round(cmp * 1.005, 2)
 
-        # ─── Term-Adjusted Stop Loss ─────────────────────────────────────────
-        sl_raw = min(cmp - tc["atr_sl_mult"] * atr, recent_low - 0.2 * atr)
+        # ─── Stop-Loss Anchored to Technical Support S1 ──────────────────────
+        # Place SL with breathing buffer below support so normal wicks don't trigger it
+        sl_from_support = round(s1 - 0.25 * atr, 2)
         sl_floor = cmp * (1.0 - tc["sl_max_pct"])
-        sl = max(sl_floor, min(cmp * 0.985, sl_raw))
+
+        # If S1 is within term risk limit, use S1 anchor; otherwise limit to max term loss
+        if sl_from_support >= sl_floor:
+            sl = min(round(cmp * 0.99, 2), sl_from_support)
+        else:
+            sl = sl_floor
+
+        # Adjust for market volatility (INDIA VIX)
+        if market_regime:
+            vix = market_regime.get("vix_level", 14.0)
+            if vix > 18.0:
+                # Elevated volatility: expand buffer slightly to avoid noise whipsaw
+                sl = min(sl, round(cmp - 1.2 * atr, 2))
+
         sl = round(sl, 2)
         sl_pct = round(((sl - cmp) / cmp) * 100.0, 2)
-
-        # ─── Term-Adjusted Targets ───────────────────────────────────────────
-        t1_min_pct = {"short": 1.02, "medium": 1.03, "long": 1.05}
-        t1 = round(max(cmp * t1_min_pct.get(trade_term, 1.03), cmp + tc["atr_target_mult"] * atr), 2)
-        t1_pct = round(((t1 - cmp) / cmp) * 100.0, 2)
-
-        t2 = round(max(t1 * 1.03, cmp + tc["atr_target2_mult"] * atr), 2)
-        t2_pct = round(((t2 - cmp) / cmp) * 100.0, 2)
-
-        # Risk-to-Reward Ratio (against Target 1)
         risk = max(cmp - sl, 0.01)
-        reward = max(t1 - cmp, 0.01)
+
+        # ─── Target 1 Anchored to Chart Resistance R1 ────────────────────────
+        # Primary target is at or slightly before overhead resistance R1
+        t1_cand = round(r1 * 0.998, 2)
 
         # Enforce minimum 1:1 Risk-to-Reward discipline (Reward >= Risk)
-        if reward < risk:
-            t1 = round(cmp + risk, 2)
-            t1_pct = round(((t1 - cmp) / cmp) * 100.0, 2)
-            t2 = round(max(t2, cmp + 1.8 * risk), 2)
-            t2_pct = round(((t2 - cmp) / cmp) * 100.0, 2)
-            reward = max(t1 - cmp, 0.01)
+        # If R1 is too close to CMP (Reward < Risk), setup requires breakout past R1 targeting R2
+        if (t1_cand - cmp) < risk:
+            t1 = round(max(cmp + risk, r2 * 0.995), 2)
+        else:
+            t1 = max(t1_cand, round(cmp + risk, 2))
 
+        t1 = round(t1, 2)
+        t1_pct = round(((t1 - cmp) / cmp) * 100.0, 2)
+
+        # ─── Target 2 Anchored to Extended Resistance R2 / Runner ────────────
+        t2 = round(max(t1 * 1.025, r2, cmp + tc["atr_target2_mult"] * atr), 2)
+        t2_pct = round(((t2 - cmp) / cmp) * 100.0, 2)
+
+        reward = max(t1 - cmp, 0.01)
         rr_ratio = round(reward / risk, 2)
 
         # ─── Term-Adjusted Holding Period ────────────────────────────────────
@@ -353,6 +520,14 @@ class TradePlanner:
             target_2=t2,
             available_capital=available_capital,
             max_acceptable_loss=max_acceptable_loss,
+        )
+
+        tech_reasoning = (
+            f"Trade setup anchored to chart support at INR {s1} ({sr['support_1']['type']}) "
+            f"with stop-loss positioned below at INR {sl} ({sl_pct}%). "
+            f"Target 1 at INR {t1} (+{t1_pct}%) aligned with chart resistance at INR {r1} ({sr['resistance_1']['type']}), "
+            f"yielding an asymmetric 1:{rr_ratio:.2f} risk-to-reward ratio. "
+            f"Target 2 at INR {t2} (+{t2_pct}%) targets extended structural zone at INR {r2} ({sr['resistance_2']['type']})."
         )
 
         summary = (
@@ -385,6 +560,12 @@ class TradePlanner:
             atr_14=round(atr, 2),
             trend=trend,
             position_sizing=sizing.to_dict(),
+            support_1=sr["support_1"],
+            support_2=sr["support_2"],
+            resistance_1=sr["resistance_1"],
+            resistance_2=sr["resistance_2"],
+            market_regime=market_regime or {},
+            technical_reasoning=tech_reasoning,
             exit_rule=f"Hold position strictly until Target Price or Stop-Loss is reached. No artificial time exit. ({tc['label']} {trading_type.title()} mode).",
             strategy_summary=summary,
         )

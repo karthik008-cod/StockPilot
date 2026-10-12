@@ -4659,6 +4659,89 @@ body {
     color: #f59e0b;
 }
 
+/* Chart Support & Resistance + Market/News Strip */
+.sp-chart-sr-bar {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: var(--spacing-sm);
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    padding: 10px 14px;
+    margin-bottom: var(--spacing-sm);
+}
+
+.sp-sr-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.sp-sr-label {
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-muted);
+}
+
+.sp-sr-val {
+    font-size: 0.88rem;
+    font-weight: 700;
+    font-family: var(--font-mono);
+    color: var(--text-white);
+}
+
+.sp-sr-item.support-item .sp-sr-val {
+    color: #38bdf8;
+}
+
+.sp-sr-item.resistance-item .sp-sr-val {
+    color: #a78bfa;
+}
+
+.sp-sr-item.market-item .sp-sr-val {
+    color: #34d399;
+}
+
+.sp-sr-item.news-item .sp-sr-val {
+    color: #fbbf24;
+}
+
+.sp-sr-sub {
+    font-size: 0.68rem;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.sp-news-headline-row {
+    background: rgba(245, 158, 11, 0.08);
+    border: 1px solid rgba(245, 158, 11, 0.25);
+    border-radius: var(--radius-sm);
+    padding: 6px 12px;
+    font-size: 0.76rem;
+    color: #fbbf24;
+    margin-bottom: var(--spacing-md);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.sp-news-headline-row span {
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.sp-news-headline-row em {
+    color: var(--text-secondary);
+    font-style: italic;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 /* Why Recommended Callout */
 .sp-why-box {
     background: linear-gradient(135deg, rgba(30, 58, 138, 0.18) 0%, rgba(88, 28, 135, 0.15) 100%);
@@ -4841,6 +4924,9 @@ body {
     .sp-trade-matrix {
         grid-template-columns: repeat(4, 1fr);
     }
+    .sp-chart-sr-bar {
+        grid-template-columns: repeat(2, 1fr);
+    }
 }
 
 @media (max-width: 768px) {
@@ -4852,6 +4938,9 @@ body {
     }
     .sp-trade-matrix {
         grid-template-columns: repeat(2, 1fr);
+    }
+    .sp-chart-sr-bar {
+        grid-template-columns: 1fr;
     }
     .sp-insights-grid {
         grid-template-columns: 1fr;

@@ -17,11 +17,13 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple
 
+import json
 import numpy as np
 import pandas as pd
 
 from stockpilot.data.cleaner import DataCleaner
 from stockpilot.data.loader import DataLoader, _sanitize_ticker
+from stockpilot.features.sentiment import SentimentFeatureExtractor
 from stockpilot.ml.features import FeatureEngineeringPipeline
 from stockpilot.trade.planner import TradePlanner, TERM_CONFIGS
 from stockpilot.universe import universe as universe_mgr
@@ -129,6 +131,17 @@ class StockScore:
         self.expected_holding_days: int = 0
         self.trend: str = "Neutral"
 
+        # Chart Support & Resistance
+        self.support_1: Dict[str, Any] = {}
+        self.support_2: Dict[str, Any] = {}
+        self.resistance_1: Dict[str, Any] = {}
+        self.resistance_2: Dict[str, Any] = {}
+
+        # Market & News Sentiment context
+        self.market_regime: Dict[str, Any] = {}
+        self.news_sentiment: Dict[str, Any] = {}
+        self.technical_reasoning: str = ""
+
         # Reasoning
         self.key_notes: List[str] = []
         self.why_recommended: str = ""
@@ -173,6 +186,13 @@ class StockScore:
             "risk_reward_ratio": self.risk_reward_ratio,
             "expected_holding_days": self.expected_holding_days,
             "trend": self.trend,
+            "support_1": self.support_1,
+            "support_2": self.support_2,
+            "resistance_1": self.resistance_1,
+            "resistance_2": self.resistance_2,
+            "market_regime": self.market_regime,
+            "news_sentiment": self.news_sentiment,
+            "technical_reasoning": self.technical_reasoning,
             "key_notes": self.key_notes,
             "why_recommended": self.why_recommended,
             "risk_factors": self.risk_factors,
@@ -418,6 +438,32 @@ def _generate_key_notes(ss: StockScore, term: str) -> List[str]:
     notes = []
     f = ss.raw_features
 
+    # 1. Chart Structure: Support & Resistance Anchor Notes
+    if ss.support_1 and ss.support_1.get("price"):
+        s1_p = ss.support_1["price"]
+        s1_t = ss.support_1.get("type", "Chart Support")
+        notes.append(f"🛡️ Chart Support (S1): ₹{s1_p} ({s1_t}) anchors the stop-loss buffer")
+    if ss.resistance_1 and ss.resistance_1.get("price"):
+        r1_p = ss.resistance_1["price"]
+        r1_t = ss.resistance_1.get("type", "Overhead Resistance")
+        notes.append(f"🎯 Chart Resistance (R1): ₹{r1_p} ({r1_t}) aligns with Target 1")
+
+    # 2. Market Trend & Volatility Alignment
+    if ss.market_regime:
+        n_tr = ss.market_regime.get("nifty_trend", "Bullish")
+        v_lvl = ss.market_regime.get("vix_level", 14.0)
+        v_reg = ss.market_regime.get("vix_regime", "Calm")
+        notes.append(f"🌐 Market Alignment: NIFTY is {n_tr} | INDIA VIX at {v_lvl:.1f} ({v_reg})")
+
+    # 3. News Catalyst & Sentiment
+    if ss.news_sentiment and ss.news_sentiment.get("news_count", 0) > 0:
+        n_lbl = ss.news_sentiment.get("sentiment_label", "Neutral")
+        n_sc = ss.news_sentiment.get("sentiment_score", 0.0)
+        n_cnt = ss.news_sentiment.get("news_count", 0)
+        top_h = ss.news_sentiment.get("top_headline", "")
+        h_snippet = f" — \"{top_h[:65]}...\"" if top_h else ""
+        notes.append(f"📰 News Catalyst: {n_lbl} ({n_sc:+.2f} score, {n_cnt} articles){h_snippet}")
+
     d_rsi = f.get("daily_rsi_14", 50)
     w_rsi = f.get("weekly_rsi_14", 50)
     m_rsi = f.get("monthly_rsi_14", 50)
@@ -493,6 +539,12 @@ def _generate_risk_factors(ss: StockScore, term: str) -> List[str]:
     vol_shock = f.get("volume_shock", 1.0)
     vol_ratio = f.get("vol_ratio_5_20", 1.0)
 
+    # News risk check
+    if ss.news_sentiment and ss.news_sentiment.get("sentiment_score", 0.0) < -0.15:
+        n_sc = ss.news_sentiment.get("sentiment_score", 0.0)
+        top_h = ss.news_sentiment.get("top_headline", "")
+        risks.append(f"Headline caution: Negative news tone ({n_sc:+.2f}) on '{top_h[:55]}...' — strictly honor stop-loss")
+
     if d_rsi > 72:
         risks.append(f"Daily RSI at {d_rsi:.1f} — overbought, consider waiting for a pullback to entry zone")
     if m_rsi > 78:
@@ -555,8 +607,43 @@ def _generate_why_recommended(ss: StockScore, term: str, total_universe: int) ->
     ]
 
     parts.append(
-        f"Its strongest factors are {strengths_str}."
+        f"Its strongest technical drivers are {strengths_str}."
     )
+
+    # 1. Chart Support & Resistance rationale
+    if ss.support_1 and ss.resistance_1:
+        s1_p = ss.support_1.get("price")
+        s1_t = ss.support_1.get("type", "Chart Support")
+        r1_p = ss.resistance_1.get("price")
+        r1_t = ss.resistance_1.get("type", "Overhead Resistance")
+        parts.append(
+            f"Price action analysis confirms key structural support at ₹{s1_p} ({s1_t}), "
+            f"providing a technical base to protect stop-loss at ₹{ss.stop_loss.get('price')}. "
+            f"Primary chart resistance is mapped at ₹{r1_p} ({r1_t}), aligning with Target 1."
+        )
+
+    # 2. Market Trend & Regime rationale
+    if ss.market_regime:
+        n_tr = ss.market_regime.get("nifty_trend", "Bullish")
+        v_lvl = ss.market_regime.get("vix_level", 14.0)
+        bias = ss.market_regime.get("market_bias", "Favorable")
+        parts.append(
+            f"Market context: NIFTY shows a {n_tr} trend with INDIA VIX at {v_lvl:.1f}, "
+            f"creating a {bias.lower()} environment."
+        )
+
+    # 3. News Catalyst rationale
+    if ss.news_sentiment and ss.news_sentiment.get("news_count", 0) > 0:
+        n_score = ss.news_sentiment.get("sentiment_score", 0.0)
+        n_head = ss.news_sentiment.get("top_headline", "")
+        if n_score >= 0.15:
+            parts.append(
+                f"News catalysts are bullish (+{n_score:.2f}) with active coverage: \"{n_head[:70]}...\"."
+            )
+        elif n_score <= -0.15:
+            parts.append(
+                f"Recent news tone has cautious sentiment ({n_score:.2f}) on: \"{n_head[:70]}...\", accounted for in risk management."
+            )
 
     # Add specific metric citations
     if dist_200 > 0 and f.get("ema_50_200_ratio", 1.0) > 1.0:
@@ -569,8 +656,8 @@ def _generate_why_recommended(ss: StockScore, term: str, total_universe: int) ->
 
     if hurst > 0.55:
         parts.append(
-            f"A Hurst exponent of {hurst:.2f} confirms that price movements exhibit genuine trending behavior "
-            f"rather than random noise — this is a statistically measurable edge."
+            f"A Hurst exponent of {hurst:.2f} confirms price movements exhibit persistent trending behavior "
+            f"rather than random walk noise."
         )
 
     if w_rsi >= 55:
@@ -583,8 +670,7 @@ def _generate_why_recommended(ss: StockScore, term: str, total_universe: int) ->
 
     if alpha > 3:
         parts.append(
-            f"Alpha of +{alpha:.1f}% over NIFTY demonstrates independent relative strength — "
-            f"this stock is outperforming the broader market."
+            f"Alpha of +{alpha:.1f}% over NIFTY demonstrates independent relative strength."
         )
 
     # Risk-reward context
@@ -615,6 +701,7 @@ class StockRecommender:
         self.cleaner = cleaner or DataCleaner()
         self.feature_pipeline = FeatureEngineeringPipeline(frac_d=0.45)
         self.planner = TradePlanner()
+        self.sentiment_extractor = SentimentFeatureExtractor()
 
         # Cache benchmark data for alpha computation
         self._benchmark_df: Optional[pd.DataFrame] = None
@@ -628,6 +715,130 @@ class StockRecommender:
                 self._benchmark_df = bench_df.tail(500).reset_index(drop=True)
         except Exception as e:
             logger.warning("Could not load benchmark for recommender: %s", e)
+
+    def _get_market_regime(self) -> Dict[str, Any]:
+        """Analyzes benchmark NIFTY 50 trend and INDIA VIX volatility regime."""
+        regime = {
+            "nifty_trend": "Bullish",
+            "nifty_change_5d": 0.0,
+            "vix_level": 14.38,
+            "vix_regime": "Low Volatility (Calm)",
+            "market_bias": "Favorable for Long Setups",
+            "regime_summary": "NIFTY in structural uptrend with low VIX tailwind",
+        }
+
+        # 1. Analyze NIFTY 50 benchmark
+        try:
+            if self._benchmark_df is not None and len(self._benchmark_df) >= 30:
+                close = self._benchmark_df["Close"]
+                c_curr = float(close.iloc[-1])
+                c_5d = float(close.iloc[-5]) if len(close) >= 5 else c_curr
+                ret_5d = ((c_curr - c_5d) / c_5d) * 100.0
+                regime["nifty_change_5d"] = round(ret_5d, 2)
+
+                ema_20 = float(close.ewm(span=20).mean().iloc[-1])
+                ema_50 = float(close.ewm(span=50).mean().iloc[-1]) if len(close) >= 50 else ema_20
+
+                if c_curr > ema_20 > ema_50:
+                    regime["nifty_trend"] = "Strong Bullish"
+                elif c_curr > ema_20:
+                    regime["nifty_trend"] = "Mild Bullish"
+                elif c_curr < ema_20 < ema_50:
+                    regime["nifty_trend"] = "Bearish Correction"
+                else:
+                    regime["nifty_trend"] = "Consolidation / Mixed"
+        except Exception as ne:
+            logger.debug("Error computing NIFTY trend: %s", ne)
+
+        # 2. Check INDIA VIX
+        try:
+            from web.app import _market_indices_cache
+            indices = _market_indices_cache.get("indices", [])
+            for idx in indices:
+                if idx.get("ticker") == "^INDIAVIX" or idx.get("name") == "INDIA VIX":
+                    vix_val = float(idx.get("ltp", 14.38))
+                    if vix_val > 0:
+                        regime["vix_level"] = round(vix_val, 2)
+                        if vix_val < 14.5:
+                            regime["vix_regime"] = "Low Volatility (Calm)"
+                        elif vix_val <= 18.0:
+                            regime["vix_regime"] = "Moderate Volatility (Normal)"
+                        else:
+                            regime["vix_regime"] = "Elevated Volatility (High Risk)"
+                        break
+        except Exception:
+            pass
+
+        # 3. Overall Market Bias
+        if "Bullish" in regime["nifty_trend"] and regime["vix_level"] < 18.0:
+            regime["market_bias"] = "Favorable for Long Setups"
+            regime["regime_summary"] = (
+                f"NIFTY {regime['nifty_trend']} (+{regime['nifty_change_5d']} 5d) "
+                f"with VIX at {regime['vix_level']:.1f} creates supportive tailwinds for equity momentum."
+            )
+        elif "Bearish" in regime["nifty_trend"]:
+            regime["market_bias"] = "Defensive / Selective Momentum"
+            regime["regime_summary"] = (
+                f"NIFTY in correction phase ({regime['nifty_change_5d']} 5d). "
+                f"Enforcing strict technical support invalidation buffers."
+            )
+        else:
+            regime["market_bias"] = "Selective Stock Picking"
+            regime["regime_summary"] = (
+                f"NIFTY consolidating ({regime['nifty_change_5d']} 5d). "
+                f"Trading setups respect immediate chart resistance and support boundaries."
+            )
+
+        return regime
+
+    def _analyze_stock_news(self, ticker: str) -> Dict[str, Any]:
+        """Loads latest news for ticker and computes financial sentiment polarity."""
+        try:
+            news_items = self.loader.load_news(ticker)
+            if not news_items:
+                return {
+                    "sentiment_score": 0.0,
+                    "sentiment_label": "Neutral / No Headlines",
+                    "news_count": 0,
+                    "top_headline": "No adverse news catalysts detected",
+                    "catalyst_impact": "Neutral",
+                }
+
+            scores = []
+            for item in news_items:
+                title = item.get("title", "")
+                sc = self.sentiment_extractor.score_text(title)
+                scores.append(sc)
+
+            avg_score = float(np.mean(scores)) if scores else 0.0
+            top_title = news_items[0].get("title", "") if news_items else ""
+
+            if avg_score >= 0.2:
+                label = "Bullish Catalyst"
+                catalyst = "Positive"
+            elif avg_score <= -0.2:
+                label = "Cautionary Headwind"
+                catalyst = "Negative"
+            else:
+                label = "Neutral / Stable"
+                catalyst = "Neutral"
+
+            return {
+                "sentiment_score": round(avg_score, 2),
+                "sentiment_label": label,
+                "news_count": len(news_items),
+                "top_headline": top_title,
+                "catalyst_impact": catalyst,
+            }
+        except Exception as e:
+            logger.debug("News analysis failed for %s: %s", ticker, e)
+            return {
+                "sentiment_score": 0.0,
+                "sentiment_label": "Neutral",
+                "news_count": 0,
+                "top_headline": "",
+                "catalyst_impact": "Neutral",
+            }
 
     def _resolve_term_from_date(self, target_date: str) -> str:
         """Converts a specific target date to the nearest matching term."""
@@ -707,6 +918,7 @@ class StockRecommender:
         ticker: str,
         stock_meta: Dict[str, Any],
         term: str,
+        market_regime: Optional[Dict[str, Any]] = None,
     ) -> StockScore:
         """Computes all factor scores for a single stock."""
         ss = StockScore(
@@ -739,6 +951,7 @@ class StockRecommender:
                     ticker=ticker,
                     trade_term=term,
                     trading_type="swing" if term == "short" else ("positional" if term == "medium" else "investing"),
+                    market_regime=market_regime,
                 )
                 ss.current_price = plan.entry_price
                 ss.entry_zone = {"min": plan.entry_zone_min, "max": plan.entry_zone_max}
@@ -748,12 +961,19 @@ class StockRecommender:
                 ss.risk_reward_ratio = plan.risk_reward_ratio
                 ss.expected_holding_days = plan.expected_holding_days
                 ss.trend = plan.trend
+                ss.support_1 = plan.support_1
+                ss.support_2 = plan.support_2
+                ss.resistance_1 = plan.resistance_1
+                ss.resistance_2 = plan.resistance_2
+                ss.technical_reasoning = plan.technical_reasoning
+                ss.market_regime = plan.market_regime
             except Exception as plan_err:
                 logger.debug("Trade plan generation failed for %s: %s", ticker, plan_err)
                 cmp = float(cleaned["Close"].iloc[-1])
                 ss.current_price = round(cmp, 2)
                 ss.entry_zone = {"min": round(cmp * 0.995, 2), "max": round(cmp * 1.005, 2)}
                 ss.risk_reward_ratio = 1.0
+                ss.market_regime = market_regime or {}
 
             # Enforce minimum 1:1 Risk-to-Reward ratio constraint
             if ss.risk_reward_ratio < MIN_RISK_REWARD_RATIO:
@@ -863,14 +1083,17 @@ class StockRecommender:
             total_universe, effective_term, index_tier or "ALL", sector or "ALL", min_risk_reward
         )
 
-        # Ensure universe stocks have live up-to-date data through today
+        # 1. Compute market regime context once upfront
+        market_regime = self._get_market_regime()
+
+        # 2. Ensure universe stocks have live up-to-date data through today
         if auto_sync_universe:
             try:
                 self._ensure_universe_freshness(stocks)
             except Exception as sync_err:
                 logger.warning("Error syncing universe freshness: %s", sync_err)
 
-        # Score all stocks in parallel
+        # 3. Score all stocks in parallel
         scored: List[StockScore] = []
         with ThreadPoolExecutor(max_workers=MAX_PARALLEL_SCANS) as executor:
             futures = {
@@ -879,6 +1102,7 @@ class StockRecommender:
                     s["symbol"],
                     s,
                     effective_term,
+                    market_regime,
                 ): s["symbol"]
                 for s in stocks
             }
@@ -898,8 +1122,18 @@ class StockRecommender:
         # Take top N
         top_picks = scored[:top_n]
 
-        # Generate reasoning for top picks
+        # 4. For qualified top picks, evaluate live news sentiment & catalysts
         for i, ss in enumerate(top_picks):
+            news_info = self._analyze_stock_news(ss.ticker)
+            ss.news_sentiment = news_info
+
+            # Sentiment impact on composite score
+            sc = news_info.get("sentiment_score", 0.0)
+            if sc >= 0.2:
+                ss.composite_score = round(min(100.0, ss.composite_score + 3.0), 1)
+            elif sc <= -0.25:
+                ss.composite_score = round(max(0.0, ss.composite_score - 6.0), 1)
+
             ss.key_notes = _generate_key_notes(ss, effective_term)
             ss.risk_factors = _generate_risk_factors(ss, effective_term)
             ss.why_recommended = _generate_why_recommended(ss, effective_term, total_universe)
@@ -924,6 +1158,7 @@ class StockRecommender:
             "min_risk_reward": min_risk_reward,
             "elapsed_seconds": round(elapsed, 2),
             "recommendations": [ss.to_dict() for ss in top_picks],
+            "market_regime": market_regime,
             "scoring_weights": TERM_FACTOR_WEIGHTS.get(effective_term, TERM_FACTOR_WEIGHTS["medium"]),
         }
 

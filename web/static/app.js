@@ -3340,6 +3340,32 @@ function renderSmartPicksResults(data) {
             const rrTag = numRR >= 2.0 ? "🔥 Premium" : (numRR >= 1.5 ? "⭐ High R:R" : "✓ Min 1:1");
             const horizon = rec.expected_holding_days ? `~${rec.expected_holding_days}d` : "—";
 
+            // Chart Support & Resistance
+            const s1Val = rec.support_1?.price;
+            const s1Display = s1Val != null ? `₹${Number(s1Val).toFixed(2)}` : "—";
+            const s1Type = rec.support_1?.type || "Key Support";
+            const s1Dist = rec.support_1?.distance_pct != null ? `${Number(rec.support_1.distance_pct).toFixed(1)}%` : "";
+
+            const r1Val = rec.resistance_1?.price;
+            const r1Display = r1Val != null ? `₹${Number(r1Val).toFixed(2)}` : "—";
+            const r1Type = rec.resistance_1?.type || "Key Resistance";
+            const r1Dist = rec.resistance_1?.distance_pct != null ? `+${Number(rec.resistance_1.distance_pct).toFixed(1)}%` : "";
+
+            // Market Regime & INDIA VIX
+            const mkt = rec.market_regime || {};
+            const mktTrend = mkt.nifty_trend || "NIFTY Bullish";
+            const mktVix = mkt.vix_level != null ? Number(mkt.vix_level).toFixed(1) : "14.4";
+
+            // News Sentiment & Catalyst
+            const news = rec.news_sentiment || {};
+            const newsLabel = news.sentiment_label || "Neutral";
+            const newsCount = news.news_count || 0;
+            const newsCountText = newsCount > 0 ? `${newsCount} stories` : "Stable";
+            const topHeadline = news.top_headline ? news.top_headline.trim() : "";
+            const headlineHtml = (topHeadline && topHeadline.length > 5 && !topHeadline.startsWith("No adverse"))
+                ? `<div class="sp-news-headline-row"><span>📰 Recent Coverage:</span> <em>"${topHeadline.length > 95 ? topHeadline.slice(0, 95) + '...' : topHeadline}"</em></div>`
+                : "";
+
             // Key notes bullets
             const notesHtml = (rec.key_notes || []).map(n => `<li>${n}</li>`).join("");
             // Risk factors bullets
@@ -3415,6 +3441,31 @@ function renderSmartPicksResults(data) {
                         <span class="sp-metric-val">${horizon}</span>
                     </div>
                 </div>
+
+                <!-- Chart Support & Resistance + Market/News Anchoring Strip -->
+                <div class="sp-chart-sr-bar">
+                    <div class="sp-sr-item support-item">
+                        <span class="sp-sr-label">🛡️ Support (S1)</span>
+                        <span class="sp-sr-val">${s1Display}</span>
+                        <span class="sp-sr-sub">${s1Type} ${s1Dist ? '(' + s1Dist + ')' : ''}</span>
+                    </div>
+                    <div class="sp-sr-item resistance-item">
+                        <span class="sp-sr-label">🎯 Resistance (R1)</span>
+                        <span class="sp-sr-val">${r1Display}</span>
+                        <span class="sp-sr-sub">${r1Type} ${r1Dist ? '(' + r1Dist + ')' : ''}</span>
+                    </div>
+                    <div class="sp-sr-item market-item">
+                        <span class="sp-sr-label">🌐 Market Trend</span>
+                        <span class="sp-sr-val">${mktTrend}</span>
+                        <span class="sp-sr-sub">INDIA VIX: ${mktVix}</span>
+                    </div>
+                    <div class="sp-sr-item news-item">
+                        <span class="sp-sr-label">📰 News Catalyst</span>
+                        <span class="sp-sr-val">${newsLabel}</span>
+                        <span class="sp-sr-sub">${newsCountText}</span>
+                    </div>
+                </div>
+                ${headlineHtml}
 
                 <!-- Why StockPilot Recommends This Stock -->
                 <div class="sp-why-box">

@@ -1,6 +1,7 @@
 """Tests for StockRecommender and ML Smart Picks selection."""
 
 import unittest
+from unittest.mock import MagicMock
 import pandas as pd
 import numpy as np
 
@@ -31,12 +32,11 @@ class TestStockRecommender(unittest.TestCase):
         self.assertEqual(_score_risk_reward(2.5), 100.0)
         self.assertEqual(_score_risk_reward(3.0), 100.0)
 
-    def test_trade_planner_strictly_enforces_1_to_1_rr(self):
-        """Verify TradePlanner never produces a trade plan with R:R < 1.0."""
+    def test_trade_planner_strictly_enforces_1_to_1_rr_and_supports(self):
+        """Verify TradePlanner detects chart support/resistance and enforces R:R >= 1.0."""
         planner = TradePlanner()
-        # Create a mock dataframe
-        n = 30
-        dates = pd.date_range("2026-09-01", periods=n, freq="B")
+        n = 50
+        dates = pd.date_range("2026-08-01", periods=n, freq="B")
         close = np.linspace(100.0, 120.0, n)
         high = close + 2.0
         low = close - 2.0
@@ -53,6 +53,7 @@ class TestStockRecommender(unittest.TestCase):
                 df=df,
                 ticker="TEST.NS",
                 trade_term=term,
+                market_regime={"nifty_trend": "Bullish", "vix_level": 14.5},
             )
             self.assertGreaterEqual(plan.risk_reward_ratio, 1.0, f"R:R ratio failed for term {term}")
             self.assertGreaterEqual(
@@ -60,6 +61,27 @@ class TestStockRecommender(unittest.TestCase):
                 round(plan.entry_price - plan.stop_loss, 2),
                 f"Reward < Risk for term {term}"
             )
+            self.assertIn("price", plan.support_1)
+            self.assertIn("price", plan.resistance_1)
+            self.assertGreater(plan.resistance_1["price"], 0)
+            self.assertGreater(plan.support_1["price"], 0)
+            self.assertIn("INR", plan.technical_reasoning)
+
+    def test_market_regime_and_news_analysis(self):
+        """Verify market regime and news analysis structure in recommender."""
+        regime = self.recommender._get_market_regime()
+        self.assertIn("nifty_trend", regime)
+        self.assertIn("vix_level", regime)
+        self.assertIn("market_bias", regime)
+
+        # Mock news loader
+        self.recommender.loader.load_news = MagicMock(return_value=[
+            {"title": "Company reports record profit surge in Q2", "date": "2026-10-12"}
+        ])
+        news_res = self.recommender._analyze_stock_news("TEST.NS")
+        self.assertEqual(news_res["news_count"], 1)
+        self.assertGreater(news_res["sentiment_score"], 0.0)
+        self.assertEqual(news_res["catalyst_impact"], "Positive")
 
 
 if __name__ == "__main__":
