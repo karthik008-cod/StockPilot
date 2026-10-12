@@ -9,6 +9,7 @@ from stockpilot.ml.validation import PurgedTimeSeriesSplit
 from stockpilot.ml.models import MarketRegimeDetector, MetaLabelClassifier
 from stockpilot.ml.explain import FeatureAttributor
 from stockpilot.ml.pipeline import MLEngine, ml_engine
+from stockpilot.ml.recommender import StockRecommender, stock_recommender
 
 __all__ = [
     "TargetGenerator",
@@ -23,5 +24,7 @@ __all__ = [
     "FeatureAttributor",
     "MLEngine",
     "ml_engine",
+    "StockRecommender",
+    "stock_recommender",
 ]
 

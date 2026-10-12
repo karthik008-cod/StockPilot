@@ -33,9 +33,9 @@ VALID_TRADING_TYPES = [
 TERM_CONFIGS = {
     "short": {
         "label": "Short-Term",
-        "atr_target_mult": 1.5,     # Conservative T1 multiplier
-        "atr_target2_mult": 2.5,    # Extended T2 multiplier
-        "atr_sl_mult": 1.2,         # Tighter stop
+        "atr_target_mult": 1.8,     # High R:R target (~1.5:1)
+        "atr_target2_mult": 3.0,    # Extended T2 runner (~2.5:1)
+        "atr_sl_mult": 1.2,         # Disciplined stop
         "min_days": 2,
         "max_days": 15,
         "sl_max_pct": 0.03,         # Max 3% SL
@@ -43,8 +43,8 @@ TERM_CONFIGS = {
     },
     "medium": {
         "label": "Medium-Term",
-        "atr_target_mult": 2.0,
-        "atr_target2_mult": 3.5,
+        "atr_target_mult": 2.5,     # High R:R target (~1.7:1)
+        "atr_target2_mult": 4.2,    # Extended T2 runner (~2.8:1)
         "atr_sl_mult": 1.5,
         "min_days": 5,
         "max_days": 45,
@@ -53,9 +53,9 @@ TERM_CONFIGS = {
     },
     "long": {
         "label": "Long-Term",
-        "atr_target_mult": 3.0,
-        "atr_target2_mult": 5.0,
-        "atr_sl_mult": 2.0,
+        "atr_target_mult": 3.6,     # High R:R target (~2.0:1)
+        "atr_target2_mult": 6.0,    # Extended T2 runner (~3.3:1)
+        "atr_sl_mult": 1.8,
         "min_days": 20,
         "max_days": 180,
         "sl_max_pct": 0.08,         # Max 8% SL
@@ -326,6 +326,15 @@ class TradePlanner:
         # Risk-to-Reward Ratio (against Target 1)
         risk = max(cmp - sl, 0.01)
         reward = max(t1 - cmp, 0.01)
+
+        # Enforce minimum 1:1 Risk-to-Reward discipline (Reward >= Risk)
+        if reward < risk:
+            t1 = round(cmp + risk, 2)
+            t1_pct = round(((t1 - cmp) / cmp) * 100.0, 2)
+            t2 = round(max(t2, cmp + 1.8 * risk), 2)
+            t2_pct = round(((t2 - cmp) / cmp) * 100.0, 2)
+            reward = max(t1 - cmp, 0.01)
+
         rr_ratio = round(reward / risk, 2)
 
         # ─── Term-Adjusted Holding Period ────────────────────────────────────

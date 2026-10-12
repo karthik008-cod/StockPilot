@@ -2416,6 +2416,10 @@ function switchTab(tabId) {
         loadMarketStats();
     }
 
+    if (tabId === "tabViewSmartPicks") {
+        initSmartPicks();
+    }
+
     if (tabId === "tabViewML") {
         const input = document.getElementById("mlTickerInput");
         if (input && currentTicker) {
@@ -3137,6 +3141,358 @@ function renderMLQualification(data, cleanSymbol) {
     if (diagVolRatio) diagVolRatio.textContent = `${(mem.vol_ratio_5_20 || 1.0).toFixed(2)}`;
 }
 
+// ============================================================
+// SMART PICKS — ML STOCK RECOMMENDATION ENGINE
+// ============================================================
+
+let smartPicksInitialized = false;
+
+function initSmartPicks() {
+    if (smartPicksInitialized) return;
+    smartPicksInitialized = true;
+
+    const tierSelect = document.getElementById("spIndexTier");
+    if (tierSelect) {
+        tierSelect.addEventListener("change", () => {
+            populateSmartPicksSectors(tierSelect.value);
+        });
+    }
+
+    const dateInput = document.getElementById("spTargetDate");
+    const termSelect = document.getElementById("spTermSelect");
+    if (dateInput && termSelect) {
+        dateInput.addEventListener("change", () => {
+            if (dateInput.value) {
+                const target = new Date(dateInput.value);
+                const today = new Date();
+                const diffDays = Math.ceil((target - today) / (1000 * 60 * 60 * 24));
+                if (diffDays <= 15) {
+                    termSelect.value = "short";
+                } else if (diffDays <= 45) {
+                    termSelect.value = "medium";
+                } else {
+                    termSelect.value = "long";
+                }
+            }
+        });
+    }
+
+    populateSmartPicksSectors(tierSelect ? tierSelect.value : "NIFTY 200");
+}
+
+async function populateSmartPicksSectors(tier) {
+    const sectorEl = document.getElementById("spSector");
+    if (!sectorEl) return;
+    try {
+        const url = tier ? `/api/sectors?tier=${encodeURIComponent(tier)}` : `/api/sectors`;
+        const res = await fetch(url);
+        const data = await res.json();
+        const sectors = data.sectors || [];
+        
+        const currentVal = sectorEl.value;
+        sectorEl.innerHTML = `<option value="">All Sectors (${sectors.length} sectors)</option>`;
+        sectors.forEach(sec => {
+            const opt = document.createElement("option");
+            opt.value = sec;
+            opt.textContent = sec;
+            if (sec === currentVal) opt.selected = true;
+            sectorEl.appendChild(opt);
+        });
+    } catch (e) {
+        console.error("Error populating sectors for Smart Picks:", e);
+    }
+}
+
+async function runSmartPicks() {
+    const btn = document.getElementById("btnRunSmartPicks");
+    const term = document.getElementById("spTermSelect") ? document.getElementById("spTermSelect").value : "medium";
+    const targetDate = document.getElementById("spTargetDate") ? document.getElementById("spTargetDate").value : "";
+    const indexTier = document.getElementById("spIndexTier") ? document.getElementById("spIndexTier").value : "";
+    const sector = document.getElementById("spSector") ? document.getElementById("spSector").value : "";
+    const topN = document.getElementById("spTopN") ? document.getElementById("spTopN").value : "10";
+    const minRR = document.getElementById("spMinRR") ? document.getElementById("spMinRR").value : "1.0";
+
+    const summarySection = document.getElementById("spSummarySection");
+    const placeholder = document.getElementById("spPlaceholder");
+    const resultsList = document.getElementById("spResultsList");
+
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = `<span class="sp-spinner"></span> Syncing & Scanning Universe...`;
+    }
+
+    if (placeholder) {
+        placeholder.style.display = "block";
+        placeholder.innerHTML = `
+            <div class="sp-placeholder-icon">⚡</div>
+            <h3>Syncing live market data (through today) & scoring ${indexTier || "NIFTY"} stocks...</h3>
+            <p>Evaluating multi-factor indicators (RSI zones, Hurst persistence, volatility suitability, EMA structure, volume surges, and minimum ${minRR}:1 Risk-to-Reward ratio)...</p>
+        `;
+    }
+    if (resultsList) resultsList.style.display = "none";
+
+    try {
+        const query = new URLSearchParams({
+            term: term,
+            top_n: topN,
+            min_rr: minRR,
+        });
+        if (targetDate) query.set("target_date", targetDate);
+        if (indexTier) query.set("index_tier", indexTier);
+        if (sector) query.set("sector", sector);
+
+        const res = await fetch(`/api/ml/recommend?${query.toString()}`);
+        if (!res.ok) {
+            throw new Error(`Server returned ${res.status}: ${res.statusText}`);
+        }
+        const data = await res.json();
+
+        // Update summary
+        if (summarySection) {
+            summarySection.style.display = "block";
+            const uCount = document.getElementById("spUniverseCount");
+            const qCount = document.getElementById("spQualifiedCount");
+            const tLabel = document.getElementById("spTermLabel");
+            const sTime = document.getElementById("spScanTime");
+            if (uCount) uCount.textContent = data.universe_scanned || 0;
+            if (qCount) qCount.textContent = data.qualified_count || 0;
+            if (tLabel) tLabel.textContent = `${data.term_label || term} (Min R:R ${data.min_risk_reward || 1}:1)`;
+            if (sTime) sTime.textContent = `${data.elapsed_seconds || 0}s`;
+        }
+
+        renderSmartPicksResults(data);
+        showToast(`Smart Picks complete: ${data.recommendations ? data.recommendations.length : 0} top stocks found!`, "success");
+    } catch (err) {
+        console.error("Error running Smart Picks:", err);
+        showToast(`Scan failed: ${err.message}`, "error");
+        if (placeholder) {
+            placeholder.style.display = "block";
+            placeholder.innerHTML = `
+                <div class="sp-placeholder-icon">⚠️</div>
+                <h3 style="color: var(--color-negative);">Scan encountered an error</h3>
+                <p>${err.message}</p>
+            `;
+        }
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = `<span>🚀 Find Smart Picks</span>`;
+        }
+    }
+}
+
+function renderSmartPicksResults(data) {
+    const placeholder = document.getElementById("spPlaceholder");
+    const resultsList = document.getElementById("spResultsList");
+
+    if (!data.recommendations || data.recommendations.length === 0) {
+        if (placeholder) {
+            placeholder.style.display = "block";
+            placeholder.innerHTML = `
+                <div class="sp-placeholder-icon">🔍</div>
+                <h3>No stocks met the criteria for ${data.term_label || "this term"} with Min R:R ≥ ${data.min_risk_reward || 1.0}:1</h3>
+                <p>Try widening your index tier (e.g. NIFTY 200 or NIFTY 500) or adjusting the minimum risk-to-reward ratio.</p>
+            `;
+        }
+        if (resultsList) resultsList.style.display = "none";
+        return;
+    }
+
+    if (placeholder) placeholder.style.display = "none";
+    if (resultsList) {
+        resultsList.style.display = "flex";
+        resultsList.innerHTML = "";
+
+        data.recommendations.forEach((rec, idx) => {
+            const card = document.createElement("div");
+            card.className = "sp-card";
+
+            const rank = idx + 1;
+            const rankClass = rank <= 3 ? "top-3" : "";
+            const scoreClass = rec.composite_score >= 70 ? "score-high" : rec.composite_score >= 55 ? "score-med" : "score-mod";
+
+            const curPrice = (rec.current_price !== undefined && rec.current_price !== null)
+                ? `₹${Number(rec.current_price).toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`
+                : "—";
+
+            const eLowVal = rec.entry_zone ? (rec.entry_zone.min ?? rec.entry_zone.low ?? rec.current_price) : null;
+            const eHighVal = rec.entry_zone ? (rec.entry_zone.max ?? rec.entry_zone.high ?? rec.current_price) : null;
+            const entryLow = eLowVal != null ? `₹${Number(eLowVal).toFixed(2)}` : "—";
+            const entryHigh = eHighVal != null ? `₹${Number(eHighVal).toFixed(2)}` : "—";
+
+            const t1PriceVal = rec.target_1 ? (rec.target_1.price ?? rec.target_1) : null;
+            const t1PctVal = rec.target_1 ? (rec.target_1.pct ?? 0) : 0;
+            const tgt1Price = t1PriceVal != null ? `₹${Number(t1PriceVal).toFixed(2)}` : "—";
+            const tgt1Pct = t1PctVal != null ? `+${Number(t1PctVal).toFixed(1)}%` : "—";
+
+            const t2PriceVal = rec.target_2 ? (rec.target_2.price ?? rec.target_2) : null;
+            const t2PctVal = rec.target_2 ? (rec.target_2.pct ?? 0) : 0;
+            const tgt2Price = t2PriceVal != null ? `₹${Number(t2PriceVal).toFixed(2)}` : "—";
+            const tgt2Pct = t2PctVal != null ? `+${Number(t2PctVal).toFixed(1)}%` : "—";
+
+            const slPriceVal = rec.stop_loss ? (rec.stop_loss.price ?? rec.stop_loss) : null;
+            const slPctVal = rec.stop_loss ? (rec.stop_loss.pct ?? 0) : 0;
+            const slPrice = slPriceVal != null ? `₹${Number(slPriceVal).toFixed(2)}` : "—";
+            const slPct = slPctVal != null ? `${Number(slPctVal).toFixed(1)}%` : "—";
+
+            const numRR = rec.risk_reward_ratio != null ? Number(rec.risk_reward_ratio) : 0;
+            const rr = numRR > 0 ? `1 : ${numRR.toFixed(2)}` : "—";
+            const rrTag = numRR >= 2.0 ? "🔥 Premium" : (numRR >= 1.5 ? "⭐ High R:R" : "✓ Min 1:1");
+            const horizon = rec.expected_holding_days ? `~${rec.expected_holding_days}d` : "—";
+
+            // Key notes bullets
+            const notesHtml = (rec.key_notes || []).map(n => `<li>${n}</li>`).join("");
+            // Risk factors bullets
+            const risksHtml = (rec.risk_factors || []).map(r => `<li>${r}</li>`).join("");
+
+            // Breakdown factors
+            const bd = rec.score_breakdown || {};
+            const factorsHtml = `
+                <div class="sp-factors-row">
+                    <span style="font-size: 0.7rem; font-weight: 700; color: var(--text-secondary); text-transform: uppercase;">Factor Breakdown:</span>
+                    <div class="sp-factor-item"><span>RSI Zone:</span> <span class="sp-factor-score-badge">${bd.daily_rsi_zone || 0}</span></div>
+                    <div class="sp-factor-item"><span>Weekly Trend:</span> <span class="sp-factor-score-badge">${bd.weekly_rsi_trend || 0}</span></div>
+                    <div class="sp-factor-item"><span>Hurst Memory:</span> <span class="sp-factor-score-badge">${bd.hurst_persistence || 0}</span></div>
+                    <div class="sp-factor-item"><span>Volatility Fit:</span> <span class="sp-factor-score-badge">${bd.volatility_fit || 0}</span></div>
+                    <div class="sp-factor-item"><span>EMA Structure:</span> <span class="sp-factor-score-badge">${bd.ema_structure || 0}</span></div>
+                    <div class="sp-factor-item"><span>Volume Surge:</span> <span class="sp-factor-score-badge">${bd.volume_surge || 0}</span></div>
+                    <div class="sp-factor-item"><span>Alpha vs NIFTY:</span> <span class="sp-factor-score-badge">${bd.alpha_benchmark || 0}</span></div>
+                    <div class="sp-factor-item"><span>R:R Quality:</span> <span class="sp-factor-score-badge" style="color: #34d399; font-weight: 700;">${bd.risk_reward_fit || 0}</span></div>
+                </div>
+            `;
+
+            card.innerHTML = `
+                <div class="sp-card-header">
+                    <div class="sp-card-identity">
+                        <div class="sp-rank-badge ${rankClass}">#${rank}</div>
+                        <div class="sp-ticker-block">
+                            <div class="sp-ticker-name">
+                                <span>${rec.ticker}</span>
+                                <div class="sp-header-badges">
+                                    <span class="sp-pill sp-pill-sector">${rec.sector || "Equity"}</span>
+                                    <span class="sp-pill sp-pill-trend">${rec.trend || "BULLISH"}</span>
+                                </div>
+                            </div>
+                            <div class="sp-company-name">${rec.company_name || rec.ticker}</div>
+                        </div>
+                    </div>
+                    <div class="sp-score-badge-wrap">
+                        <span class="sp-score-label">Suitability Score</span>
+                        <span class="sp-score-value ${scoreClass}">${rec.composite_score}</span>
+                        <span style="font-size: 0.75rem; color: var(--text-muted); font-family: var(--font-mono);">/ 100</span>
+                    </div>
+                </div>
+
+                <!-- Key Trade Setup Matrix -->
+                <div class="sp-trade-matrix">
+                    <div class="sp-metric-pill">
+                        <span class="sp-metric-label">Current Price</span>
+                        <span class="sp-metric-val">${curPrice}</span>
+                    </div>
+                    <div class="sp-metric-pill">
+                        <span class="sp-metric-label">Entry Zone</span>
+                        <span class="sp-metric-val">${entryLow} - ${entryHigh}</span>
+                    </div>
+                    <div class="sp-metric-pill target-pill">
+                        <span class="sp-metric-label">Target 1 (Primary)</span>
+                        <span class="sp-metric-val">${tgt1Price} (${tgt1Pct})</span>
+                    </div>
+                    <div class="sp-metric-pill target-pill">
+                        <span class="sp-metric-label">Target 2 (Runner)</span>
+                        <span class="sp-metric-val">${tgt2Price} (${tgt2Pct})</span>
+                    </div>
+                    <div class="sp-metric-pill sl-pill">
+                        <span class="sp-metric-label">Stop-Loss</span>
+                        <span class="sp-metric-val">${slPrice} (${slPct})</span>
+                    </div>
+                    <div class="sp-metric-pill rr-pill">
+                        <span class="sp-metric-label">Risk : Reward</span>
+                        <span class="sp-metric-val">${rr}</span>
+                        <span style="font-size: 0.65rem; color: #f59e0b; font-weight: 700; margin-top: 2px;">${rrTag}</span>
+                    </div>
+                    <div class="sp-metric-pill">
+                        <span class="sp-metric-label">Holding Horizon</span>
+                        <span class="sp-metric-val">${horizon}</span>
+                    </div>
+                </div>
+
+                <!-- Why StockPilot Recommends This Stock -->
+                <div class="sp-why-box">
+                    <div class="sp-why-header">
+                        <span>🎯</span>
+                        <span class="sp-why-title">Why StockPilot Recommends This Stock</span>
+                    </div>
+                    <p class="sp-why-text">${rec.why_recommended || "Meets composite technical scoring criteria for this investment horizon."}</p>
+                </div>
+
+                <!-- Insights & Risks Two Columns -->
+                <div class="sp-insights-grid">
+                    <div class="sp-notes-card">
+                        <h4><span>📋</span> Key Points Every Trader Should Know</h4>
+                        <ul class="sp-notes-list">
+                            ${notesHtml || "<li>Follow planned entry zones and avoid chasing gaps.</li>"}
+                        </ul>
+                    </div>
+                    <div class="sp-risks-card">
+                        <h4><span>⚠️</span> Trade Invalidation & Risk Factors</h4>
+                        <ul class="sp-risks-list">
+                            ${risksHtml || "<li>Strictly honor stop-loss to manage downside exposure.</li>"}
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Factor Score Breakdown -->
+                ${factorsHtml}
+
+                <!-- Action Footer -->
+                <div class="sp-card-actions">
+                    <button type="button" class="sp-action-btn btn-chart" onclick="viewStockInChart('${rec.ticker}')">
+                        <span>📈 Open Chart & Indicators</span>
+                    </button>
+                    <button type="button" class="sp-action-btn btn-planner" onclick="viewStockInPlanner('${rec.ticker}')">
+                        <span>🎯 Trade Execution Planner</span>
+                    </button>
+                    <button type="button" class="sp-action-btn" onclick="viewStockInML('${rec.ticker}')">
+                        <span>🤖 ML Deep-Dive</span>
+                    </button>
+                </div>
+            `;
+
+            resultsList.appendChild(card);
+        });
+    }
+}
+
+function viewStockInChart(ticker) {
+    if (!ticker) return;
+    const clean = ticker.replace(".NS", "");
+    currentTicker = `${clean}.NS`;
+    const searchInput = document.getElementById("stockSearchInput");
+    if (searchInput) searchInput.value = clean;
+    switchTab("tabViewChart");
+    if (typeof loadStock === "function") {
+        loadStock(`${clean}.NS`);
+    }
+}
+
+function viewStockInPlanner(ticker) {
+    if (!ticker) return;
+    const clean = ticker.replace(".NS", "");
+    currentTicker = `${clean}.NS`;
+    switchTab("tabViewPlanner");
+}
+
+function viewStockInML(ticker) {
+    if (!ticker) return;
+    const clean = ticker.replace(".NS", "");
+    const input = document.getElementById("mlTickerInput");
+    if (input) input.value = clean;
+    switchTab("tabViewML");
+    if (typeof loadMLDashboard === "function") {
+        loadMLDashboard(clean);
+    }
+}
+
 // Expose helpers globally
 window.switchTab = switchTab;
 window.triggerLiveSync = triggerLiveSync;
@@ -3159,6 +3515,15 @@ window.renderMarketIndices = renderMarketIndices;
 window.refreshMarketIndices = refreshMarketIndices;
 window.refreshMarketIndicesActual = refreshMarketIndices;
 
+// Smart Picks exports
+window.runSmartPicks = runSmartPicks;
+window.populateSmartPicksSectors = populateSmartPicksSectors;
+window.initSmartPicks = initSmartPicks;
+window.viewStockInChart = viewStockInChart;
+window.viewStockInPlanner = viewStockInPlanner;
+window.viewStockInML = viewStockInML;
+
 document.addEventListener("DOMContentLoaded", init);
+
 
 

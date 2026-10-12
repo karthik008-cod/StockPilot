@@ -48,6 +48,7 @@
                     <button type="button" class="nav-link" data-tab="tabViewScanner" onclick="switchTab('tabViewScanner')">Strategy Scanner</button>
                     <button type="button" class="nav-link" data-tab="tabViewPlanner" onclick="switchTab('tabViewPlanner')">Trade Planner</button>
                     <button type="button" class="nav-link" data-tab="tabViewUniverse" onclick="switchTab('tabViewUniverse')">Universe & Sync</button>
+                    <button type="button" class="nav-link" data-tab="tabViewSmartPicks" onclick="switchTab('tabViewSmartPicks')">?? Smart Picks</button>
                     <button type="button" class="nav-link" data-tab="tabViewML" onclick="switchTab('tabViewML')">AI / ML Engine</button>
                 </nav>
             </div>
@@ -1096,8 +1097,114 @@
         </div> <!-- End tabViewUniverse -->
 
         <!-- ============================================================== -->
-        <!-- TAB 5: AI / ML ENGINE -->
+        <!-- TAB 6: SMART PICKS — ML STOCK RECOMMENDATION ENGINE -->
         <!-- ============================================================== -->
+        <div class="app-tab-pane" id="tabViewSmartPicks" style="display: none;">
+
+            <!-- Smart Picks Header -->
+            <section class="sp-header-section">
+                <div class="sp-header-left">
+                    <span class="sp-section-badge">SMART STOCK RECOMMENDATION ENGINE</span>
+                    <h2 class="sp-main-title">🎯 Smart Picks — AI-Powered Stock Recommendations</h2>
+                    <p class="sp-sub-title">
+                        Multi-factor scoring engine scans the NIFTY universe, ranks stocks by suitability for your investment term, and provides actionable trade plans with transparent reasoning.
+                    </p>
+                </div>
+            </section>
+
+            <!-- Filters Bar -->
+            <section class="sp-filters-section">
+                <div class="sp-filters-grid">
+                    <div class="sp-filter-group">
+                        <label class="sp-filter-label" for="spTermSelect">Investment Term</label>
+                        <select id="spTermSelect" class="form-input sp-select">
+                            <option value="short">Short-Term (2-15 days)</option>
+                            <option value="medium" selected>Medium-Term (5-45 days)</option>
+                            <option value="long">Long-Term (20-180 days)</option>
+                        </select>
+                    </div>
+                    <div class="sp-filter-group">
+                        <label class="sp-filter-label" for="spTargetDate">Or Specific Date</label>
+                        <input type="date" id="spTargetDate" class="form-input sp-date-input" placeholder="Optional">
+                    </div>
+                    <div class="sp-filter-group">
+                        <label class="sp-filter-label" for="spIndexTier">Index Tier</label>
+                        <select id="spIndexTier" class="form-input sp-select">
+                            <option value="">All Stocks</option>
+                            <option value="NIFTY 50">NIFTY 50</option>
+                            <option value="NIFTY 100">NIFTY 100</option>
+                            <option value="NIFTY 200" selected>NIFTY 200</option>
+                            <option value="NIFTY 500">NIFTY 500</option>
+                        </select>
+                    </div>
+                    <div class="sp-filter-group">
+                        <label class="sp-filter-label" for="spSector">Sector</label>
+                        <select id="spSector" class="form-input sp-select">
+                            <option value="">All Sectors</option>
+                        </select>
+                    </div>
+                    <div class="sp-filter-group">
+                        <label class="sp-filter-label" for="spMinRR">Min Risk : Reward</label>
+                        <select id="spMinRR" class="form-input sp-select">
+                            <option value="1.0" selected>1 : 1.0 (Min 1:1)</option>
+                            <option value="1.5">1 : 1.5 (High R:R)</option>
+                            <option value="2.0">1 : 2.0 (Premium R:R)</option>
+                        </select>
+                    </div>
+                    <div class="sp-filter-group">
+                        <label class="sp-filter-label" for="spTopN">Top N Picks</label>
+                        <select id="spTopN" class="form-input sp-select">
+                            <option value="5">Top 5</option>
+                            <option value="10" selected>Top 10</option>
+                            <option value="15">Top 15</option>
+                            <option value="20">Top 20</option>
+                        </select>
+                    </div>
+                    <div class="sp-filter-group sp-filter-action">
+                        <button type="button" id="btnRunSmartPicks" class="btn btn-primary sp-run-btn" onclick="runSmartPicks()">
+                            <span>🚀 Find Smart Picks</span>
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Scan Summary -->
+            <section class="sp-summary-section" id="spSummarySection" style="display: none;">
+                <div class="sp-summary-grid">
+                    <div class="sp-summary-card">
+                        <span class="sp-summary-label">Universe Scanned</span>
+                        <span class="sp-summary-value" id="spUniverseCount">0</span>
+                    </div>
+                    <div class="sp-summary-card">
+                        <span class="sp-summary-label">Qualified</span>
+                        <span class="sp-summary-value" id="spQualifiedCount">0</span>
+                    </div>
+                    <div class="sp-summary-card">
+                        <span class="sp-summary-label">Term</span>
+                        <span class="sp-summary-value" id="spTermLabel">Medium-Term</span>
+                    </div>
+                    <div class="sp-summary-card">
+                        <span class="sp-summary-label">Scan Time</span>
+                        <span class="sp-summary-value" id="spScanTime">0s</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Results Container -->
+            <section class="sp-results-section" id="spResultsSection">
+                <div class="sp-results-placeholder" id="spPlaceholder">
+                    <div class="sp-placeholder-icon">🎯</div>
+                    <h3>Select your investment term and filters, then click "Find Smart Picks"</h3>
+                    <p>The engine will scan and rank stocks from the NIFTY universe based on multi-factor technical scoring tailored to your chosen investment horizon.</p>
+                </div>
+                <div class="sp-results-list" id="spResultsList" style="display: none;"></div>
+            </section>
+
+        </div> <!-- End tabViewSmartPicks -->
+
+        <!-- ============================================================== -->
+        <!-- TAB 5: AI / ML ENGINE -->
+        <!-- ==============================================================  -->
         <div class="app-tab-pane" id="tabViewML" style="display: none;">
             
             <!-- ML Header & Filter Strip -->

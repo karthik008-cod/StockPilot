@@ -29,6 +29,7 @@ from stockpilot.strategy import (
     reset_strategy,
 )
 from stockpilot.ml import ml_engine
+from stockpilot.ml.recommender import stock_recommender
 
 
 logger = logging.getLogger(__name__)
@@ -790,6 +791,50 @@ def get_ml_features(ticker: str = Query(..., description="Stock ticker symbol e.
         raise
     except Exception as e:
         logger.error("Error extracting ML features for %s: %s", ticker, e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/ml/recommend")
+def get_ml_recommendations(
+    term: str = Query("medium", description="Investment term: short, medium, or long"),
+    target_date: Optional[str] = Query(None, description="Specific target date YYYY-MM-DD (overrides term)"),
+    index_tier: Optional[str] = Query(None, description="Index tier filter: NIFTY 50, NIFTY 100, NIFTY 200, NIFTY 500, or ALL"),
+    sector: Optional[str] = Query(None, description="Sector/industry filter"),
+    top_n: int = Query(10, description="Number of top recommendations to return"),
+    min_score: float = Query(45.0, description="Minimum composite score threshold (0-100)"),
+    min_rr: float = Query(1.0, description="Minimum risk-to-reward ratio (e.g. 1.0 for 1:1, 1.5 for 1.5:1)"),
+):
+    """Smart Stock Recommendation Engine.
+    
+    Scans the NIFTY universe filtered by index tier and/or sector,
+    scores each stock using a term-weighted multi-factor composite model,
+    ranks them by suitability, and returns actionable trade plans with
+    entry zones, stop-loss, targets, risk-reward ratios, and transparent
+    reasoning explaining why each stock was recommended.
+    
+    Term options:
+    - short: 2-15 day quick momentum capture
+    - medium: 5-45 day swing trade setups  
+    - long: 20-180 day positional / investment horizon
+    - Or provide a specific target_date to auto-detect the best term
+    """
+    try:
+        valid_terms = ["short", "medium", "long"]
+        if term not in valid_terms:
+            term = "medium"
+        
+        result = stock_recommender.recommend(
+            term=term,
+            target_date=target_date,
+            index_tier=index_tier,
+            sector=sector,
+            top_n=min(max(1, top_n), 50),
+            min_score=max(0.0, min(100.0, min_score)),
+            min_risk_reward=max(1.0, min_rr),
+        )
+        return result
+    except Exception as e:
+        logger.error("Error generating ML recommendations: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 

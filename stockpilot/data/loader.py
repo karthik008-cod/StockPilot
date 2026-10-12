@@ -36,10 +36,12 @@ class DataLoader:
         end_date: Optional[str] = None,
         period: Optional[str] = "max",
         force_reload: bool = False,
+        auto_sync: bool = True,
     ) -> pd.DataFrame:
         """Loads historical OHLCV data with raw and adjusted prices from the very first day of trading.
 
-        Includes Dividends and Stock Splits.
+        Includes Dividends and Stock Splits. Automatically checks freshness and syncs
+        recent delta when cached data is older than 2 calendar days.
         """
         safe_ticker = _sanitize_ticker(ticker)
         cache_file = self.cache_dir / f"{safe_ticker}_ohlcv.parquet"
@@ -62,6 +64,21 @@ class DataLoader:
                 df = pd.read_parquet(cache_file)
                 if not df.empty and "Date" in df.columns:
                     df["Date"] = pd.to_datetime(df["Date"])
+
+                    # Freshness auto-sync: If cache is older than 2 calendar days, sync recent candles
+                    if auto_sync and not end_date:
+                        last_cache_date = df["Date"].max().date()
+                        today = pd.Timestamp.now().date()
+                        if (today - last_cache_date).days >= 2:
+                            logger.info(
+                                "Cache for %s is stale (last date: %s, today: %s). Syncing live OHLCV...",
+                                ticker, last_cache_date, today
+                            )
+                            sync_res = self.sync_live_ohlcv(ticker)
+                            if sync_res.get("status") == "success":
+                                df = pd.read_parquet(cache_file)
+                                df["Date"] = pd.to_datetime(df["Date"])
+
                     if start_date and not is_max_request:
                         req_start = pd.to_datetime(start_date)
                         cache_min = df["Date"].min()
@@ -520,3 +537,113 @@ class DataLoader:
             "new_bars_added": max(0, new_bars),
             "message": f"Data synced up to date: {new_last_date}",
         }
+
+    def sync_batch_ohlcv(
+        self,
+        tickers: List[str],
+        chunk_size: int = 40,
+        period: str = "1mo",
+    ) -> Dict[str, Any]:
+        """Batch-syncs recent trading sessions (1 month delta) for multiple tickers in chunks.
+
+        Merges new daily bars into each ticker's local parquet cache so that all stocks
+        are completely up to date with today's market session in just a few seconds.
+        """
+        if not tickers:
+            return {"status": "success", "synced_count": 0, "message": "No tickers provided"}
+
+        synced_count = 0
+        latest_date = None
+        unique_tickers = list(dict.fromkeys(tickers))
+
+        for i in range(0, len(unique_tickers), chunk_size):
+            chunk = unique_tickers[i : i + chunk_size]
+            try:
+                data = yf.download(
+                    chunk,
+                    period=period,
+                    auto_adjust=self.config.auto_adjust,
+                    actions=True,
+                    progress=False,
+                )
+                if data is None or data.empty:
+                    continue
+
+                is_multi = isinstance(data.columns, pd.MultiIndex)
+                for ticker in chunk:
+                    try:
+                        safe_ticker = _sanitize_ticker(ticker)
+                        cache_file = self.cache_dir / f"{safe_ticker}_ohlcv.parquet"
+                        cache_meta_file = self.cache_dir / f"{safe_ticker}_ohlcv.meta.json"
+
+                        if is_multi:
+                            ticker_df = pd.DataFrame()
+                            for col in ["Open", "High", "Low", "Close", "Adj Close", "Volume", "Dividends", "Stock Splits"]:
+                                if (col, ticker) in data.columns:
+                                    ticker_df[col] = data[(col, ticker)]
+                                elif col in ["Dividends", "Stock Splits"]:
+                                    ticker_df[col] = 0.0
+                                elif col == "Adj Close" and ("Close", ticker) in data.columns:
+                                    ticker_df[col] = data[("Close", ticker)]
+                        else:
+                            ticker_df = data.copy()
+
+                        ticker_df = ticker_df.dropna(subset=["Close"])
+                        if ticker_df.empty:
+                            continue
+
+                        ticker_df = ticker_df.reset_index()
+                        if "Date" in ticker_df.columns:
+                            ticker_df["Date"] = pd.to_datetime(ticker_df["Date"]).dt.tz_localize(None)
+                            ticker_df["Date"] = pd.to_datetime(ticker_df["Date"].dt.date)
+
+                        expected_cols = ["Date", "Open", "High", "Low", "Close", "Adj Close", "Volume", "Dividends", "Stock Splits"]
+                        for c in expected_cols:
+                            if c not in ticker_df.columns:
+                                if c == "Adj Close" and "Close" in ticker_df.columns:
+                                    ticker_df[c] = ticker_df["Close"]
+                                elif c in ["Dividends", "Stock Splits"]:
+                                    ticker_df[c] = 0.0
+                                else:
+                                    ticker_df[c] = np.nan
+                        ticker_df = ticker_df[expected_cols].sort_values("Date").reset_index(drop=True)
+
+                        if cache_file.exists():
+                            old_df = pd.read_parquet(cache_file)
+                            old_df["Date"] = pd.to_datetime(old_df["Date"]).dt.tz_localize(None)
+                            old_df["Date"] = pd.to_datetime(old_df["Date"].dt.date)
+                            merged = pd.concat([old_df, ticker_df], ignore_index=True)
+                            merged = merged.drop_duplicates(subset=["Date"], keep="last").sort_values("Date").reset_index(drop=True)
+                            final_df = merged
+                        else:
+                            final_df = ticker_df
+
+                        final_df.to_parquet(cache_file, index=False)
+                        cur_last = str(final_df["Date"].max().date())
+                        latest_date = cur_last
+                        synced_count += 1
+
+                        meta_data = {
+                            "ticker": ticker,
+                            "is_max_history": True,
+                            "first_date": str(final_df["Date"].min().date()),
+                            "last_date": cur_last,
+                            "total_rows": len(final_df),
+                            "last_synced_at": pd.Timestamp.now().isoformat(),
+                        }
+                        with open(cache_meta_file, "w", encoding="utf-8") as mf:
+                            json.dump(meta_data, mf, indent=2)
+
+                    except Exception as tick_err:
+                        logger.warning("Error saving batch sync for %s: %s", ticker, tick_err)
+
+            except Exception as chunk_err:
+                logger.warning("Batch sync error for chunk %s: %s", chunk[:3], chunk_err)
+
+        return {
+            "status": "success",
+            "synced_count": synced_count,
+            "latest_date": latest_date,
+            "message": f"Synced {synced_count} stocks up to date {latest_date}",
+        }
+
