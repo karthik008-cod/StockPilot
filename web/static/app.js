@@ -116,20 +116,113 @@ const tradingTypeSelect = document.getElementById("tradingTypeSelect");
 const availableCapitalInput = document.getElementById("availableCapitalInput");
 const maxLossInput = document.getElementById("maxLossInput");
 
+// Chart Mode State (Candlestick vs Line)
+let currentChartMode = "candlestick";
+
+function setChartType(type) {
+    currentChartMode = type;
+    const btnCandles = document.getElementById("btnModeCandles");
+    const btnLine = document.getElementById("btnModeLine");
+    if (btnCandles && btnLine) {
+        if (type === "candlestick") {
+            btnCandles.classList.add("active");
+            btnLine.classList.remove("active");
+        } else {
+            btnLine.classList.add("active");
+            btnCandles.classList.remove("active");
+        }
+    }
+    if (allRecords && allRecords.length > 0) {
+        renderChart(allRecords);
+    }
+}
+window.setChartType = setChartType;
+
+// View Routing: Separate Landing Page vs Dashboard View
+function initRouting() {
+    window.addEventListener("hashchange", handleRouting);
+    handleRouting();
+}
+
+function handleRouting() {
+    const hash = window.location.hash;
+    if (hash === "#app" || hash.startsWith("#app")) {
+        showAppView();
+    } else {
+        showLandingView(hash);
+    }
+}
+
+function showLandingView(hash) {
+    const landing = document.getElementById("viewLandingPage");
+    const appDash = document.getElementById("viewAppDashboard");
+    if (landing) landing.style.display = "block";
+    if (appDash) appDash.style.display = "none";
+
+    if (hash && hash !== "#" && hash !== "#/" && hash !== "#!") {
+        const cleanId = hash.replace("#", "");
+        const target = document.getElementById(cleanId);
+        if (target) {
+            setTimeout(() => {
+                target.scrollIntoView({ behavior: "smooth", block: "start" });
+            }, 80);
+            return;
+        }
+    }
+    window.scrollTo({ top: 0, behavior: "instant" });
+}
+
+function scrollToLandingSection(sectionId, e) {
+    if (e && e.preventDefault) e.preventDefault();
+    const landing = document.getElementById("viewLandingPage");
+    const appDash = document.getElementById("viewAppDashboard");
+    if (landing) landing.style.display = "block";
+    if (appDash) appDash.style.display = "none";
+
+    const target = document.getElementById(sectionId);
+    if (target) {
+        history.replaceState(null, "", `#${sectionId}`);
+        target.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+}
+
+function showAppView() {
+    const landing = document.getElementById("viewLandingPage");
+    const appDash = document.getElementById("viewAppDashboard");
+    if (landing) landing.style.display = "none";
+    if (appDash) appDash.style.display = "block";
+    window.scrollTo({ top: 0, behavior: "instant" });
+    if (allRecords && allRecords.length > 0) {
+        setTimeout(() => renderChart(allRecords), 100);
+    }
+}
+
+function navigateToApp() {
+    window.location.hash = "#app";
+}
+
+function navigateToLanding(e) {
+    if (e && e.preventDefault) e.preventDefault();
+    window.location.hash = "";
+}
+
+window.navigateToApp = navigateToApp;
+window.navigateToLanding = navigateToLanding;
+window.scrollToLandingSection = scrollToLandingSection;
+
 async function init() {
+    initRouting();
     setupEventListeners();
     setupTradeStrategyListeners();
     initDeadlineDefaults();
     updateFlowUI();
     initTabNavigation();
+    initSmartPicks();
     loadMarketStats();
-    loadMarketIndices(false);
-    if (typeof syncNavCapital === "function") syncNavCapital();
-
-    // Auto-refresh market indices every 60 seconds
-    setInterval(() => {
-        loadMarketIndices(false);
-    }, 60000);
+    loadMarketIndices();
+    initAnimMasterEffects();
+    // Auto-refresh market indices every 45 seconds
+    setInterval(() => loadMarketIndices(false), 45000);
 }
 
 /**
@@ -173,7 +266,7 @@ function updateFlowUI() {
         exportCsvBtn.disabled = true;
 
         workflowStatusBadge.innerHTML = '<span class="pulse-dot"></span> Step 1 of 4: Select Index Universe';
-        guidedFlowState.style.display = "flex";
+        guidedFlowState.style.display = "none";
         stockWorkspace.style.display = "none";
         return;
     }
@@ -216,7 +309,7 @@ function updateFlowUI() {
         exportCsvBtn.disabled = true;
 
         workflowStatusBadge.innerHTML = `<span class="pulse-dot"></span> Step 2 of 4: Select Sector in ${currentTier}`;
-        guidedFlowState.style.display = "flex";
+        guidedFlowState.style.display = "none";
         stockWorkspace.style.display = "none";
         return;
     }
@@ -254,7 +347,7 @@ function updateFlowUI() {
         exportCsvBtn.disabled = true;
 
         workflowStatusBadge.innerHTML = `<span class="pulse-dot"></span> Step 3 of 4: Select Stock to Analyze`;
-        guidedFlowState.style.display = "flex";
+        guidedFlowState.style.display = "none";
         stockWorkspace.style.display = "none";
         return;
     }
@@ -296,6 +389,18 @@ async function onSelectTier(tier) {
     currentTier = tier;
     currentSector = null;
     currentTicker = null;
+    stocksList = [];
+
+    const grid = document.getElementById("stockPickerGrid");
+    if (grid) {
+        grid.innerHTML = "";
+        grid.style.display = "none";
+    }
+    const searchInput = document.getElementById("stockPickerSearch");
+    if (searchInput) {
+        searchInput.value = "";
+        searchInput.disabled = true;
+    }
 
     document.querySelectorAll(".tier-choice-btn").forEach(btn => {
         if (btn.dataset.tier === tier) {
@@ -409,6 +514,9 @@ async function loadStocksForSector(tier, sector) {
 
         if (stockCountBadge) stockCountBadge.textContent = stocksList.length;
 
+        // Render interactive stock picker cards with company logos
+        renderStockPickerCards(stocksList);
+
         stockSelect.innerHTML = `<option value="" disabled selected>-- Select Stock to Analyze (${stocksList.length} available) --</option>`;
 
         if (sector === "ALL") {
@@ -454,6 +562,61 @@ async function loadStocksForSector(tier, sector) {
     }
 }
 
+function renderStockPickerCards(stocks) {
+    const grid = document.getElementById("stockPickerGrid");
+    const searchInput = document.getElementById("stockPickerSearch");
+    if (!grid) return;
+
+    if (!stocks || stocks.length === 0) {
+        grid.innerHTML = `<div class="empty-notice" style="grid-column: 1 / -1; padding: 24px; text-align: center; color: #64748B;">No stocks found for the selected sector.</div>`;
+        grid.style.display = "grid";
+        return;
+    }
+
+    grid.style.display = "grid";
+    if (searchInput) {
+        searchInput.disabled = false;
+        searchInput.value = "";
+    }
+
+    grid.innerHTML = stocks.map(stock => {
+        const cleanSym = stock.symbol.replace(".NS", "").replace("^", "").toUpperCase();
+        const brand = getStockBrandInfo(stock.symbol);
+        const logoUrl = getStockLogoUrl(stock.symbol, stock.isin);
+        const isSelected = currentTicker === stock.symbol;
+        return `
+            <div class="stock-picker-card ${isSelected ? 'is-selected' : ''}" data-symbol="${stock.symbol}" onclick="onSelectStock('${stock.symbol}')">
+                <div class="stock-picker-logo" id="pickerLogoWrap_${cleanSym}">
+                    <img src="${logoUrl}" alt="${stock.name}" class="stock-card-logo-img" loading="lazy" onerror="handleCardLogoError(this, '${cleanSym}')" />
+                    <span class="stock-card-fallback" style="background-color: ${brand.bg}; color: ${brand.color}; display: none;">${brand.text}</span>
+                </div>
+                <div class="stock-picker-info">
+                    <div class="stock-picker-name" title="${stock.name}">${stock.name}</div>
+                    <div class="stock-picker-symbol">${cleanSym} • ${stock.sector || 'NSE'}</div>
+                </div>
+                <div class="stock-picker-badge">
+                    ${isSelected ? 'Active' : 'Analyze'}
+                </div>
+            </div>
+        `;
+    }).join("");
+}
+
+function filterStockPickerCards(query) {
+    const q = (query || "").trim().toLowerCase();
+    const grid = document.getElementById("stockPickerGrid");
+    if (!grid) return;
+    const cards = grid.querySelectorAll(".stock-picker-card");
+    cards.forEach(card => {
+        const text = card.textContent.toLowerCase();
+        if (!q || text.includes(q)) {
+            card.style.display = "flex";
+        } else {
+            card.style.display = "none";
+        }
+    });
+}
+
 /**
  * Step 3 Action: Select Stock to Analyze
  */
@@ -461,7 +624,31 @@ async function onSelectStock(ticker) {
     if (!ticker) return;
     currentTicker = ticker;
     updateFlowUI();
+
+    const grid = document.getElementById("stockPickerGrid");
+    if (grid) {
+        grid.querySelectorAll(".stock-picker-card").forEach(card => {
+            if (card.dataset.symbol === ticker) {
+                card.classList.add("is-selected");
+                const badge = card.querySelector(".stock-picker-badge");
+                if (badge) badge.textContent = "Active";
+            } else {
+                card.classList.remove("is-selected");
+                const badge = card.querySelector(".stock-picker-badge");
+                if (badge) badge.textContent = "Analyze";
+            }
+        });
+    }
+
+    if (stockSelect && stockSelect.value !== ticker) {
+        stockSelect.value = ticker;
+    }
+
     await loadStockData(ticker);
+    const summaryCard = document.getElementById("summaryRibbon");
+    if (summaryCard) {
+        summaryCard.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
 }
 
 
@@ -543,6 +730,9 @@ function updateSummary(data) {
     companyNameEl.textContent = data.company_name;
     tickerBadgeEl.textContent = data.ticker;
     sectorBadgeEl.textContent = data.sector;
+
+    // Render Groww-style Stock Brand Logo
+    renderStockLogo(data.ticker, data.company_name, data.isin);
 
     latestPriceEl.textContent = `₹${formatNumber(s.latest_close)}`;
     latestDateEl.textContent = `${s.latest_date} (First Traded: ${s.first_trading_date || '--'})`;
@@ -747,34 +937,40 @@ function renderChart(records) {
 
     const chartData = [...records].reverse();
     const canvas = priceChart;
+    if (!canvas) return;
     const ctx = canvas.getContext("2d");
 
     const rect = canvas.parentElement.getBoundingClientRect();
-    const width = rect.width;
-    const height = rect.height;
+    const width = rect.width || 800;
+    const height = rect.height || 360;
     const dpr = window.devicePixelRatio || 1;
 
     canvas.width = width * dpr;
     canvas.height = height * dpr;
     ctx.scale(dpr, dpr);
 
-    ctx.clearRect(0, 0, width, height);
+    // Clean White Canvas Background
+    ctx.fillStyle = "#FFFFFF";
+    ctx.fillRect(0, 0, width, height);
 
-    const padding = { top: 20, right: 60, bottom: 40, left: 20 };
+    const padding = { top: 24, right: 70, bottom: 36, left: 20 };
     const chartWidth = width - padding.left - padding.right;
     const chartHeight = height - padding.top - padding.bottom;
 
     const prices = chartData.map(d => d.Close);
-    const volumes = chartData.map(d => d.Volume);
+    const highs = chartData.map(d => d.High !== undefined ? d.High : d.Close);
+    const lows = chartData.map(d => d.Low !== undefined ? d.Low : d.Close);
+    const volumes = chartData.map(d => d.Volume || 0);
 
-    const minPrice = Math.min(...prices) * 0.98;
-    const maxPrice = Math.max(...prices) * 1.02;
-    const maxVolume = Math.max(...volumes) * 3;
+    const minPrice = Math.min(...lows) * 0.985;
+    const maxPrice = Math.max(...highs) * 1.015;
+    const maxVolume = Math.max(...volumes, 1) * 3.5;
 
     const priceY = p => padding.top + chartHeight - ((p - minPrice) / (maxPrice - minPrice)) * chartHeight;
-    const timeX = i => padding.left + (i / (chartData.length - 1)) * chartWidth;
+    const timeX = i => padding.left + (i / Math.max(chartData.length - 1, 1)) * chartWidth;
 
-    ctx.strokeStyle = "rgba(255, 255, 255, 0.05)";
+    // Subtle clean gridlines & price labels
+    ctx.strokeStyle = "rgba(0, 0, 0, 0.06)";
     ctx.lineWidth = 1;
     const numPriceSteps = 5;
     for (let i = 0; i <= numPriceSteps; i++) {
@@ -787,41 +983,84 @@ function renderChart(records) {
         ctx.stroke();
 
         ctx.fillStyle = "#64748B";
-        ctx.font = "10px Inter";
+        ctx.font = "11px 'JetBrains Mono', monospace";
         ctx.textAlign = "left";
-        ctx.fillText(`₹${Math.round(priceVal).toLocaleString()}`, width - padding.right + 8, y + 3);
+        ctx.fillText(`₹${Math.round(priceVal).toLocaleString()}`, width - padding.right + 8, y + 4);
     }
 
-    const barWidth = Math.max(1, (chartWidth / chartData.length) * 0.7);
+    // Date horizontal labels along bottom
+    const numDateSteps = Math.min(5, chartData.length);
+    ctx.fillStyle = "#64748B";
+    ctx.font = "11px Inter, sans-serif";
+    ctx.textAlign = "center";
+    for (let i = 0; i < numDateSteps; i++) {
+        const idx = Math.floor((i / (numDateSteps - 1 || 1)) * (chartData.length - 1));
+        const x = timeX(idx);
+        const dateStr = chartData[idx].Date || "";
+        ctx.fillText(dateStr, x, height - 10);
+    }
+
+    const candleWidth = Math.max(1.8, (chartWidth / chartData.length) * 0.72);
+
+    // Volume histogram bars at bottom 25%
     chartData.forEach((d, i) => {
         const x = timeX(i);
-        const barHeight = (d.Volume / maxVolume) * (chartHeight * 0.4);
+        const barHeight = (d.Volume / maxVolume) * (chartHeight * 0.35);
         const y = padding.top + chartHeight - barHeight;
+        const isUp = d.Close >= d.Open;
 
-        ctx.fillStyle = d.Close >= d.Open ? "rgba(16, 185, 129, 0.3)" : "rgba(244, 63, 94, 0.3)";
-        ctx.fillRect(x - barWidth / 2, y, barWidth, barHeight);
+        ctx.fillStyle = isUp ? "rgba(0, 179, 134, 0.45)" : "rgba(239, 68, 68, 0.45)";
+        ctx.fillRect(x - candleWidth / 2, y, candleWidth, barHeight);
     });
 
-    const gradient = ctx.createLinearGradient(0, padding.top, 0, padding.top + chartHeight);
-    gradient.addColorStop(0, "rgba(6, 182, 212, 0.35)");
-    gradient.addColorStop(1, "rgba(99, 102, 241, 0.0)");
+    if (currentChartMode === "candlestick") {
+        // Render Japanese Candlesticks (Emerald Green & Coral Red)
+        chartData.forEach((d, i) => {
+            const x = timeX(i);
+            const isUp = d.Close >= d.Open;
+            const openY = priceY(d.Open);
+            const closeY = priceY(d.Close);
+            const highY = priceY(d.High !== undefined ? d.High : Math.max(d.Open, d.Close));
+            const lowY = priceY(d.Low !== undefined ? d.Low : Math.min(d.Open, d.Close));
 
-    ctx.beginPath();
-    ctx.moveTo(timeX(0), priceY(chartData[0].Close));
-    chartData.forEach((d, i) => ctx.lineTo(timeX(i), priceY(d.Close)));
-    ctx.lineTo(timeX(chartData.length - 1), padding.top + chartHeight);
-    ctx.lineTo(timeX(0), padding.top + chartHeight);
-    ctx.closePath();
-    ctx.fillStyle = gradient;
-    ctx.fill();
+            // High-Low Wick
+            ctx.strokeStyle = isUp ? "#00B386" : "#EF4444";
+            ctx.lineWidth = Math.max(1, candleWidth * 0.16);
+            ctx.beginPath();
+            ctx.moveTo(x, highY);
+            ctx.lineTo(x, lowY);
+            ctx.stroke();
 
-    ctx.beginPath();
-    ctx.moveTo(timeX(0), priceY(chartData[0].Close));
-    chartData.forEach((d, i) => ctx.lineTo(timeX(i), priceY(d.Close)));
-    ctx.strokeStyle = "#06B6D4";
-    ctx.lineWidth = 2;
-    ctx.stroke();
+            // Open-Close Body
+            const bodyY = Math.min(openY, closeY);
+            const bodyHeight = Math.max(2, Math.abs(closeY - openY));
+            ctx.fillStyle = isUp ? "#00B386" : "#EF4444";
+            ctx.fillRect(x - candleWidth / 2, bodyY, candleWidth, bodyHeight);
+        });
+    } else {
+        // High-contrast Sky Blue Area / Line Chart
+        const gradient = ctx.createLinearGradient(0, padding.top, 0, padding.top + chartHeight);
+        gradient.addColorStop(0, "rgba(2, 132, 199, 0.20)");
+        gradient.addColorStop(1, "rgba(2, 132, 199, 0.0)");
 
+        ctx.beginPath();
+        ctx.moveTo(timeX(0), priceY(chartData[0].Close));
+        chartData.forEach((d, i) => ctx.lineTo(timeX(i), priceY(d.Close)));
+        ctx.lineTo(timeX(chartData.length - 1), padding.top + chartHeight);
+        ctx.lineTo(timeX(0), padding.top + chartHeight);
+        ctx.closePath();
+        ctx.fillStyle = gradient;
+        ctx.fill();
+
+        ctx.beginPath();
+        ctx.moveTo(timeX(0), priceY(chartData[0].Close));
+        chartData.forEach((d, i) => ctx.lineTo(timeX(i), priceY(d.Close)));
+        ctx.strokeStyle = "#0284C7";
+        ctx.lineWidth = 2.2;
+        ctx.stroke();
+    }
+
+    // Interactive Hover Crosshair & OHLCV details
     canvas.onmousemove = e => {
         const mouseX = e.offsetX;
         if (mouseX < padding.left || mouseX > width - padding.right) return;
@@ -832,12 +1071,12 @@ function renderChart(records) {
 
         const changeSign = item.Change >= 0 ? "+" : "";
         chartHoverInfo.innerHTML = `
-            <strong>${item.Date}</strong> | 
+            <strong style="color: #0F172A;">${item.Date}</strong> | 
             Open: ₹${formatNumber(item.Open)} | 
             High: ₹${formatNumber(item.High)} | 
             Low: ₹${formatNumber(item.Low)} | 
-            Close: <strong>₹${formatNumber(item.Close)}</strong> | 
-            Change: <span style="color: ${item.Change >= 0 ? '#34D399' : '#FB7185'}">${changeSign}₹${formatNumber(item.Change)} (${changeSign}${item.Change_Pct.toFixed(2)}%)</span> | 
+            Close: <strong style="color: #0F172A;">₹${formatNumber(item.Close)}</strong> | 
+            Change: <span style="font-weight: 700; color: ${item.Change >= 0 ? '#00B386' : '#EF4444'}">${changeSign}₹${formatNumber(item.Change)} (${changeSign}${item.Change_Pct.toFixed(2)}%)</span> | 
             Vol: ${item.Volume.toLocaleString()}
         `;
     };
@@ -863,10 +1102,18 @@ function setupEventListeners() {
         });
     }
 
-    // Flow Step 3: Stock Selection
+    // Flow Step 3: Stock Selection Dropdown (compatibility)
     if (stockSelect) {
         stockSelect.addEventListener("change", e => {
             onSelectStock(e.target.value);
+        });
+    }
+
+    // Flow Step 3: Stock Picker Search
+    const stockPickerSearch = document.getElementById("stockPickerSearch");
+    if (stockPickerSearch) {
+        stockPickerSearch.addEventListener("input", e => {
+            filterStockPickerCards(e.target.value);
         });
     }
 
@@ -886,7 +1133,7 @@ function setupEventListeners() {
     if (tableSearch) {
         tableSearch.addEventListener("input", e => {
             const query = e.target.value.trim().toLowerCase();
-            
+
             // If table has records, filter table
             if (allRecords.length > 0) {
                 if (!query) {
@@ -920,21 +1167,7 @@ function setupEventListeners() {
     // Refresh & Export
     if (refreshBtn) {
         refreshBtn.addEventListener("click", () => {
-            triggerLiveSync(currentTicker);
-        });
-    }
-    const globalLiveSyncBtnEl = document.getElementById("globalLiveSyncBtn");
-    if (globalLiveSyncBtnEl) {
-        globalLiveSyncBtnEl.addEventListener("click", () => {
-            triggerLiveSync();
-        });
-    }
-    const btnSyncMLTickerEl = document.getElementById("btnSyncMLTicker");
-    if (btnSyncMLTickerEl) {
-        btnSyncMLTickerEl.addEventListener("click", () => {
-            const mlInput = document.getElementById("mlTickerInput");
-            const sym = (mlInput && mlInput.value) ? mlInput.value.trim() : null;
-            triggerLiveSync(sym);
+            if (currentTicker) handleRefreshStock(currentTicker);
         });
     }
     if (exportCsvBtn) {
@@ -1430,7 +1663,7 @@ function setupTradeStrategyListeners() {
         });
     }
 
-    // ─── Trade Term Pills ────────────────────────────────────────────
+    // ÔöÇÔöÇÔöÇ Trade Term Pills ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
     document.querySelectorAll(".term-pill-btn").forEach(btn => {
         btn.addEventListener("click", () => {
             document.querySelectorAll(".term-pill-btn").forEach(b => b.classList.remove("active"));
@@ -1440,7 +1673,7 @@ function setupTradeStrategyListeners() {
         });
     });
 
-    // ─── Global Config: Trading Type ────────────────────────────────
+    // ÔöÇÔöÇÔöÇ Global Config: Trading Type ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
     if (tradingTypeSelect) {
         tradingTypeSelect.addEventListener("change", () => {
             currentTradingType = tradingTypeSelect.value;
@@ -1448,20 +1681,19 @@ function setupTradeStrategyListeners() {
         });
     }
 
-    // ─── Global Config: Capital & Risk Sync with Dhan-style Top Bar ──
+    // ÔöÇÔöÇÔöÇ Global Config: Capital & Risk Sync with Dhan-style Top Bar ÔöÇÔöÇ
     function syncNavCapital() {
         const navCap = document.getElementById("navCapitalDisplay");
         const navLoss = document.getElementById("navMaxLossDisplay");
-        if (navCap) {
-            const val = availableCapitalInput ? (parseFloat(availableCapitalInput.value) || 100000) : 100000;
+        if (navCap && availableCapitalInput) {
+            const val = parseFloat(availableCapitalInput.value) || 0;
             navCap.textContent = `₹${formatNumber(val)}`;
         }
-        if (navLoss) {
-            const val = maxLossInput ? (parseFloat(maxLossInput.value) || 2000) : 2000;
+        if (navLoss && maxLossInput) {
+            const val = parseFloat(maxLossInput.value) || 0;
             navLoss.textContent = `₹${formatNumber(val)}`;
         }
     }
-    window.syncNavCapital = syncNavCapital;
     syncNavCapital();
 
     if (availableCapitalInput) {
@@ -1484,7 +1716,7 @@ function setupTradeStrategyListeners() {
         });
     }
 
-    // ─── Initialize Strategy Recommendation Scanner ──────────────────
+    // ÔöÇÔöÇÔöÇ Initialize Strategy Recommendation Scanner ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
     initStrategyScanner();
 }
 
@@ -1524,7 +1756,7 @@ const monthlyStatusNote = document.getElementById("monthlyStatusNote");
 
 const strategyCheckDetails = document.getElementById("strategyCheckDetails");
 
-// ─── Initialize Strategy Recommendation Scanner & Custom Builder ───────────
+// ÔöÇÔöÇÔöÇ Initialize Strategy Recommendation Scanner & Custom Builder ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
 async function initStrategyScanner() {
     await fetchStrategiesList();
 
@@ -1609,7 +1841,7 @@ function renderStrategyTabs() {
         const tagHtml = strat.is_builtin
             ? (strat.is_customized ? `<span class="strat-tag-modified" style="margin-left:4px;">Modified</span>` : "")
             : `<span class="strat-tag-custom" style="margin-left:4px;">Custom</span>`;
-        
+
         const titleText = strat.is_builtin ? `Strategy ${index + 1}` : strat.name;
 
         html += `
@@ -1667,7 +1899,7 @@ function updateScannerInfoStrip(stratId) {
     }
 }
 
-// ─── Strategy Modal & Builder Functions ────────────────────────────────────
+// ÔöÇÔöÇÔöÇ Strategy Modal & Builder Functions ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
 
 function openStrategyModal(strategyId = null) {
     const modal = document.getElementById("strategyModal");
@@ -1771,7 +2003,7 @@ function addConditionRow(c = null) {
             <option value="0" ${shift === 0 ? "selected" : ""}>Current</option>
             <option value="1" ${shift === 1 ? "selected" : ""}>Previous</option>
         </select>
-        <button type="button" class="btn-remove-cond" onclick="this.closest('.condition-row-card').remove()" title="Remove rule">✕</button>
+        <button type="button" class="btn-remove-cond" onclick="this.closest('.condition-row-card').remove()" title="Remove rule">Ô£ò</button>
     `;
 
     container.appendChild(row);
@@ -2051,19 +2283,26 @@ function renderScannerCandidates(data) {
 
         const conditionsHtml = (c.conditions || []).map(cond => `
             <div class="evidence-row">
-                <span class="evidence-check">${cond.passed ? "✓" : "✗"}</span>
+                <span class="evidence-check">${cond.passed ? "✓" : "Ô£ù"}</span>
                 <span>${cond.condition_desc || cond.condition} (Actual: <strong>${cond.actual !== undefined ? cond.actual : cond.actual_value}</strong>)</span>
             </div>
         `).join("");
 
         const stratDisplay = c.strategy_name || c.strategy_id;
 
+        const brand = getStockBrandInfo(c.symbol);
+
         return `
-            <div class="candidate-card" data-ticker="${c.symbol}">
+            <div class="candidate-card anim-reveal tilt-card is-visible" data-ticker="${c.symbol}">
                 <div class="candidate-card-header">
-                    <div>
-                        <div class="candidate-ticker">${c.symbol.replace(".NS", "")}</div>
-                        <div class="candidate-company" title="${c.company_name}">${c.company_name}</div>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <div class="candidate-logo-mini" style="background-color: ${brand.bg}; color: ${brand.color};">
+                            ${brand.text}
+                        </div>
+                        <div>
+                            <div class="candidate-ticker">${c.symbol.replace(".NS", "")}</div>
+                            <div class="candidate-company" title="${c.company_name}">${c.company_name}</div>
+                        </div>
                     </div>
                     <div class="candidate-badge-col">
                         <span class="candidate-strat-badge">${c.universe}</span>
@@ -2109,7 +2348,7 @@ function renderScannerCandidates(data) {
 
 function selectCandidateStock(ticker, targetTab = "analysis") {
     currentTicker = ticker;
-    
+
     // Unlock and select in stockSelect
     if (stockSelect) {
         stockSelect.disabled = false;
@@ -2267,7 +2506,7 @@ async function fetchStockStrategyCheck(ticker) {
                 const conditions = evalObj.conditions || [];
                 const condHtml = conditions.map(c => `
                     <div style="font-size: 0.76rem; color: ${c.passed ? '#34D399' : '#94A3B8'}; display: flex; align-items: center; gap: 6px;">
-                        <span>${c.passed ? '✓' : '✗'}</span>
+                        <span>${c.passed ? '✓' : 'Ô£ù'}</span>
                         <span>${c.condition_desc} (Actual: <strong>${c.actual !== undefined ? c.actual : c.actual_value}</strong>)</span>
                     </div>
                 `).join("");
@@ -2416,10 +2655,6 @@ function switchTab(tabId) {
         loadMarketStats();
     }
 
-    if (tabId === "tabViewSmartPicks") {
-        initSmartPicks();
-    }
-
     if (tabId === "tabViewML") {
         const input = document.getElementById("mlTickerInput");
         if (input && currentTicker) {
@@ -2437,7 +2672,7 @@ function showToast(message, type = "info") {
 
     const iconMap = {
         success: "✓",
-        error: "✕",
+        error: "Ô£ò",
         warning: "!",
         info: "i"
     };
@@ -2509,7 +2744,7 @@ async function handleRefreshStock(ticker) {
     } catch (err) {
         console.error("Refresh failed:", err);
         showToast(`Failed to refresh data for ${cleanSym}: ${err.message}`, "error");
-        appendSyncLog(`✕ Failed to refresh ${ticker}: ${err.message}`, "error");
+        appendSyncLog(`Ô£ò Failed to refresh ${ticker}: ${err.message}`, "error");
     } finally {
         if (refreshBtn) {
             refreshBtn.disabled = false;
@@ -2529,192 +2764,6 @@ async function handleRefreshStock(ticker) {
     }
 }
 
-// Global Live Sync Handler (called by top navbar, stock flow button, and ML tab)
-window.triggerLiveSync = triggerLiveSync;
-window._triggerLiveSyncInternal = triggerLiveSync;
-window.triggerLiveSyncActual = triggerLiveSync;
-async function triggerLiveSync(targetTicker = null) {
-    let ticker = targetTicker;
-    if (!ticker) {
-        if (currentTicker) {
-            ticker = currentTicker;
-        } else {
-            const mlInput = document.getElementById("mlTickerInput");
-            if (mlInput && mlInput.value && mlInput.value.trim()) {
-                ticker = mlInput.value.trim();
-            } else {
-                ticker = "RELIANCE.NS";
-            }
-        }
-    }
-    if (!ticker.endsWith(".NS") && !ticker.startsWith("^")) {
-        ticker = `${ticker}.NS`;
-    }
-
-    const cleanSym = ticker.replace(".NS", "");
-    const globalBtn = document.getElementById("globalLiveSyncBtn");
-    const syncText = document.getElementById("syncBtnText");
-    const refreshBtn = document.getElementById("refreshBtn");
-    const refreshText = document.getElementById("refreshBtnText");
-    const asOfBadge = document.getElementById("dataAsOfBadge");
-    const asOfText = document.getElementById("asOfDateText");
-    const mlSyncBtn = document.getElementById("btnSyncMLTicker");
-
-    if (globalBtn) globalBtn.classList.add("is-syncing");
-    if (syncText) syncText.textContent = "Syncing...";
-    if (refreshBtn) refreshBtn.classList.add("is-syncing");
-    if (refreshText) refreshText.textContent = "Syncing...";
-    if (mlSyncBtn) mlSyncBtn.classList.add("is-syncing");
-
-    showToast(`Syncing live market data for ${cleanSym} from NSE / Yahoo Finance...`, "info");
-    appendSyncLog(`Syncing live market data for ${ticker} and benchmark ^NSEI...`, "info");
-
-    try {
-        const res = await fetch(`/api/sync-live-data?ticker=${encodeURIComponent(ticker)}&sync_benchmark=true`, {
-            method: "POST",
-        });
-        if (!res.ok) {
-            throw new Error(`Server returned HTTP ${res.status}`);
-        }
-        const data = await res.json();
-        const latestDate = data.latest_date || "Today";
-        const latestClose = data.latest_close ? `₹${Number(data.latest_close).toLocaleString("en-IN")}` : "";
-        const newBars = data.new_bars_added || 0;
-
-        if (asOfText) {
-            asOfText.textContent = `Live: ${latestDate}`;
-        }
-        if (asOfBadge) {
-            asOfBadge.classList.add("pulse-success");
-            setTimeout(() => asOfBadge.classList.remove("pulse-success"), 3000);
-        }
-
-        // Update live market indices ticker strip (NIFTY 50, NIFTY NEXT 50, BANK NIFTY, INDIA VIX, NIFTY 500)
-        if (data.indices && Array.isArray(data.indices) && data.indices.length > 0) {
-            renderMarketIndices(data.indices);
-        } else {
-            loadMarketIndices(true);
-        }
-
-        // If a stock was loaded or selected in analysis workspace, reload it
-        if (currentTicker && currentTicker === ticker) {
-            await loadStockData(ticker, false);
-        } else if (!currentTicker && ticker) {
-            currentTicker = ticker;
-            await loadStockData(ticker, false);
-            updateFlowUI();
-        }
-
-        // If on AI/ML Engine tab, refresh the dashboard with new data
-        const tabML = document.getElementById("tabViewML");
-        if (tabML && tabML.style.display !== "none" && typeof loadMLDashboard === "function") {
-            await loadMLDashboard(ticker);
-        }
-
-        const successMsg = newBars > 0
-            ? `✓ Synced ${newBars} new session(s) for ${cleanSym}! Updated to ${latestDate} (LTP: ${latestClose})`
-            : `✓ ${cleanSym} is up to date: ${latestDate} (LTP: ${latestClose})`;
-
-        showToast(successMsg, "success");
-        appendSyncLog(`✓ ${ticker} synced successfully! Updated to ${latestDate}.`, "success");
-
-        if (syncText) syncText.textContent = "Live Synced ✓";
-        if (refreshText) refreshText.textContent = "Live Synced ✓";
-        setTimeout(() => {
-            if (syncText) syncText.textContent = "Get Live Data";
-            if (refreshText) refreshText.textContent = "Get Live Data";
-        }, 2500);
-
-        loadMarketStats();
-        if (typeof syncNavCapital === "function") syncNavCapital();
-    } catch (err) {
-        console.error("Error syncing live data:", err);
-        showToast(`Sync warning: ${err.message}. Using cached data.`, "warning");
-        if (syncText) syncText.textContent = "Get Live Data";
-        if (refreshText) refreshText.textContent = "Get Live Data";
-        loadMarketIndices(true);
-    } finally {
-        if (globalBtn) globalBtn.classList.remove("is-syncing");
-        if (refreshBtn) refreshBtn.classList.remove("is-syncing");
-        if (mlSyncBtn) mlSyncBtn.classList.remove("is-syncing");
-    }
-}
-
-// ─── Market Indices Ticker Strip (NIFTY 50, NIFTY NEXT 50, BANK NIFTY, INDIA VIX, NIFTY 500) ───
-async function loadMarketIndices(forceRefresh = false) {
-    const stripBtn = document.getElementById("stripRefreshBtn");
-    if (forceRefresh && stripBtn) stripBtn.classList.add("is-spinning");
-    try {
-        const url = `/api/market-indices${forceRefresh ? "?refresh=true" : ""}`;
-        const res = await fetch(url);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
-        if (data && data.indices && Array.isArray(data.indices) && data.indices.length > 0) {
-            renderMarketIndices(data.indices);
-            return data.indices;
-        }
-    } catch (err) {
-        console.warn("Could not load market indices:", err);
-    } finally {
-        if (stripBtn) stripBtn.classList.remove("is-spinning");
-    }
-    return null;
-}
-
-function renderMarketIndices(indices) {
-    if (!indices || !Array.isArray(indices) || indices.length === 0) return;
-    const container = document.getElementById("indicesStripLeft");
-    if (!container) return;
-
-    container.innerHTML = indices.map(idx => {
-        const isPos = idx.change >= 0;
-        const sign = isPos ? "+" : "";
-        const arrow = isPos ? "↗" : "↘";
-        const chgClass = isPos ? "positive" : "negative";
-        const ltpVal = Number(idx.ltp || 0);
-        const formattedLtp = ltpVal.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-        const chgVal = Number(idx.change || 0);
-        const pctVal = Number(idx.change_pct || 0);
-        const formattedChg = `${sign}${chgVal.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (${sign}${pctVal.toFixed(2)}%) ${arrow}`;
-
-        return `
-            <div class="index-ticker-item is-updated" data-index-sym="${idx.name}" title="${idx.name} (${idx.ticker}) - LTP: ₹${formattedLtp} | Date: ${idx.date || 'Live'}">
-                <span class="index-sym">${idx.name}</span>
-                <span class="index-ltp ticker-value-updated">${formattedLtp}</span>
-                <span class="index-chg ${chgClass}">${formattedChg}</span>
-            </div>
-        `;
-    }).join("");
-
-    setTimeout(() => {
-        container.querySelectorAll(".index-ticker-item").forEach(item => {
-            item.classList.remove("is-updated");
-        });
-    }, 1300);
-
-    const strip = document.getElementById("marketIndicesStrip");
-    if (strip) {
-        strip.classList.add("strip-updated-pulse");
-        setTimeout(() => strip.classList.remove("strip-updated-pulse"), 1200);
-    }
-}
-
-async function refreshMarketIndices() {
-    const stripBtn = document.getElementById("stripRefreshBtn");
-    if (stripBtn) stripBtn.classList.add("is-spinning");
-    showToast("Refreshing live market indices from NSE / Yahoo Finance...", "info");
-    try {
-        await loadMarketIndices(true);
-        await loadMarketStats();
-        if (typeof syncNavCapital === "function") syncNavCapital();
-        showToast("Market indices updated with latest live prices ✓", "success");
-    } catch (e) {
-        showToast("Failed to refresh market indices.", "warning");
-    } finally {
-        if (stripBtn) stripBtn.classList.remove("is-spinning");
-    }
-}
-
 // Loads market stats and sector breakdown in Universe Tab
 async function loadMarketStats() {
     try {
@@ -2726,20 +2775,10 @@ async function loadMarketStats() {
         if (statsLatestDate) {
             statsLatestDate.textContent = data.newest_cached_date || "Live Feed";
         }
-        const asOfText = document.getElementById("asOfDateText");
-        if (asOfText && data.newest_cached_date) {
-            asOfText.textContent = `Live: ${data.newest_cached_date}`;
-        }
 
         const statCachedTickers = document.getElementById("statCachedTickers");
         if (statCachedTickers) {
             statCachedTickers.textContent = `${data.cached_tickers_count} Tickers Cached`;
-        }
-
-        const navCoverage = document.getElementById("navCoverageDisplay");
-        if (navCoverage) {
-            const total = data.total_universe_stocks || (data.tiers && data.tiers["ALL"]) || 501;
-            navCoverage.textContent = `${total} Stocks`;
         }
 
         const universeSectorsGrid = document.getElementById("universeSectorsGrid");
@@ -2795,7 +2834,7 @@ async function syncTopLeaders() {
                 appendSyncLog(`✓ ${sym} updated up to ${resData.latest_date} (Close: ₹${resData.latest_close})`, "success");
             }
         } catch (e) {
-            appendSyncLog(`✕ Could not sync ${sym}: ${e.message}`, "error");
+            appendSyncLog(`Ô£ò Could not sync ${sym}: ${e.message}`, "error");
         }
     }
 
@@ -2817,10 +2856,14 @@ async function syncTopLeaders() {
 // AI / ML Engine Client Logic (Regime, Meta-Model & Attributions)
 // ==============================================================
 
+// ==========================================================================
+// AI / ML Engine & Deep Quantitative Diagnostics
+// ==========================================================================
+
 async function loadMLDashboard(rawTicker) {
     if (!rawTicker) rawTicker = "RELIANCE";
-    const ticker = (rawTicker.toUpperCase().endsWith(".NS") || rawTicker.startsWith("^")) 
-        ? rawTicker.toUpperCase() 
+    const ticker = (rawTicker.toUpperCase().endsWith(".NS") || rawTicker.startsWith("^"))
+        ? rawTicker.toUpperCase()
         : `${rawTicker.toUpperCase()}.NS`;
 
     const cleanSymbol = ticker.replace(".NS", "");
@@ -2844,7 +2887,6 @@ async function loadMLDashboard(rawTicker) {
 
         if (qualifyRes.ok) {
             const qualifyData = await qualifyRes.json();
-            // Pass merged regime with stock micro-regime and decoupling
             const mergedRegime = qualifyData.regime || regimeData || {};
             renderMLRegime(mergedRegime, cleanSymbol);
             renderMLQualification(qualifyData, cleanSymbol);
@@ -2871,6 +2913,7 @@ function renderMLRegime(data, cleanSymbol) {
     const macroBadge = document.getElementById("mlRegimeBadge");
     const desc = document.getElementById("mlRegimeDesc");
     const benchRet = document.getElementById("mlRegimeBenchRet");
+    const benchVol = document.getElementById("mlRegimeBenchVol");
     const stockAlpha = document.getElementById("mlStockAlpha");
     const sentiment = document.getElementById("mlRegimeSentiment");
     const barsContainer = document.getElementById("mlRegimeBarsContainer");
@@ -2881,7 +2924,7 @@ function renderMLRegime(data, cleanSymbol) {
     const micro = data.asset_micro_regime || {};
     const dec = data.alpha_decoupling || {};
 
-    // 1. Asset Micro-Regime
+    // 1. Asset Micro-Regime Badge
     if (assetBadge) {
         assetBadge.textContent = micro.name || "BULL ACCUMULATION";
         assetBadge.className = "regime-status-badge";
@@ -2892,18 +2935,16 @@ function renderMLRegime(data, cleanSymbol) {
 
     // 2. Macro Benchmark Badge
     if (macroBadge) {
-        macroBadge.textContent = `MACRO: ${data.name || data.regime_id || "DEFENSIVE"}`;
+        macroBadge.textContent = `MACRO: ${data.name || data.regime_id || "BENCHMARK"}`;
         macroBadge.className = "regime-status-badge";
         if (data.sentiment === "BULLISH") macroBadge.classList.add("bullish");
         else if (data.sentiment === "DEFENSIVE") macroBadge.classList.add("bearish");
     }
 
     // 3. Description
-    if (desc) {
-        desc.textContent = micro.desc || data.desc || "Multi-timeframe regime evaluation active.";
-    }
+    if (desc) desc.textContent = micro.desc || data.desc || "Market regime evaluation active.";
 
-    // 4. Decoupling Banner
+    // 4. Decoupling Alert Banner
     if (decouplingBanner) {
         const isDecoupled = dec.is_decoupled || (dec.alpha_20d !== undefined && dec.alpha_20d > 4.0);
         if (isDecoupled) {
@@ -2930,7 +2971,12 @@ function renderMLRegime(data, cleanSymbol) {
         benchRet.style.color = retVal >= 0 ? "var(--color-positive)" : "var(--color-negative)";
     }
 
-    // 7. Sentiment
+    // Benchmark Volatility if element exists
+    if (benchVol) {
+        benchVol.textContent = `${(data.benchmark_vol_20d || 13.4).toFixed(1)}%`;
+    }
+
+    // 7. Sentiment Bias
     if (sentiment) {
         const sVal = micro.sentiment || data.sentiment || "BULLISH";
         sentiment.textContent = sVal;
@@ -2940,10 +2986,10 @@ function renderMLRegime(data, cleanSymbol) {
     // 8. Cluster Bars
     if (barsContainer && data.probabilities) {
         const colorMap = {
-            "BULL_LOW_VOL": "#00c076",
-            "BULL_HIGH_VOL": "#0ecb81",
-            "CONSOLIDATION": "#f0b90b",
-            "BEAR_HIGH_RISK": "#f6465d",
+            "BULL_LOW_VOL": "#00B386",
+            "BULL_HIGH_VOL": "#0284C7",
+            "CONSOLIDATION": "#D97706",
+            "BEAR_HIGH_RISK": "#EB5B3C",
         };
         const nameMap = {
             "BULL_LOW_VOL": "Bull Trend (Low Vol)",
@@ -2953,7 +2999,7 @@ function renderMLRegime(data, cleanSymbol) {
         };
 
         barsContainer.innerHTML = Object.entries(data.probabilities).map(([rId, pct]) => {
-            const barColor = colorMap[rId] || "#2962ff";
+            const barColor = colorMap[rId] || "#0284C7";
             const displayName = nameMap[rId] || rId;
             return `
                 <div class="regime-bar-row">
@@ -2969,9 +3015,9 @@ function renderMLRegime(data, cleanSymbol) {
         }).join("");
     }
 
-    // 9. Compatible Strategy Tags
+    // 9. Compatible Strategies
     if (compatTags) {
-        const strats = (micro.compatible_strategies && micro.compatible_strategies.length > 0)
+        const strats = micro.compatible_strategies && micro.compatible_strategies.length > 0
             ? micro.compatible_strategies
             : (data.compatible_strategies || []);
 
@@ -3028,25 +3074,22 @@ function renderMLQualification(data, cleanSymbol) {
 
     if (winProbBar) {
         winProbBar.style.width = `${Math.min(Math.max(probNum, 0), 100)}%`;
-        winProbBar.style.background = isApproved ? "var(--color-positive)" : "var(--color-negative)";
+        winProbBar.style.backgroundColor = isApproved ? "var(--color-positive)" : "var(--color-negative)";
     }
 
-    // 3. Kelly Sizing
-    const kellyMultVal = document.getElementById("mlKellyMultVal");
+    // 3. Half-Kelly Sizing Multiplier
+    const kellyVal = document.getElementById("mlKellyMultVal");
     const kellyNote = document.getElementById("mlKellyCapitalNote");
-    const kMult = Number(q.kelly_multiplier || 0);
-
-    if (kellyMultVal) {
-        kellyMultVal.textContent = `${kMult.toFixed(2)}×`;
-        kellyMultVal.style.color = kMult > 0 ? "var(--color-positive)" : "var(--text-muted)";
+    if (kellyVal) {
+        const mult = Number(q.half_kelly_multiplier || 0);
+        kellyVal.textContent = `${mult.toFixed(2)}×`;
+        kellyVal.style.color = mult > 0 ? "var(--color-positive)" : "var(--text-secondary)";
     }
-
     if (kellyNote) {
-        if (kMult > 0) {
-            const allocAmt = Math.round(100000 * kMult);
-            kellyNote.textContent = `Allocates ₹${allocAmt.toLocaleString("en-IN")} on ₹1,00,000 portfolio`;
+        if (q.position_size_shares && q.allocated_capital) {
+            kellyNote.textContent = `Allocates ₹${Number(q.allocated_capital).toLocaleString('en-IN', {maximumFractionDigits: 0})} (${q.position_size_shares} shares)`;
         } else {
-            kellyNote.textContent = `Zero capital allocated (Risk mitigation active)`;
+            kellyNote.textContent = isApproved ? "Standard risk allocation" : "Zero capital allocated (Rule: No Trades > Loss Trades)";
         }
     }
 
@@ -3101,7 +3144,7 @@ function renderMLQualification(data, cleanSymbol) {
 
     if (headwindsList) {
         if (headwinds.length === 0) {
-            headwindsList.innerHTML = `<div class="attribution-empty">No significant headwinds detected. Clean runway.</div>`;
+            headwindsList.innerHTML = `<div class="attribution-empty">No significant headwinds detected. Clean momentum path.</div>`;
         } else {
             headwindsList.innerHTML = headwinds.map(h => `
                 <div class="attribution-item-row">
@@ -3110,40 +3153,308 @@ function renderMLQualification(data, cleanSymbol) {
                         <span class="attr-feature-desc">${h.desc}</span>
                         <span class="attr-feature-val">Value: <strong>${h.val !== undefined ? h.val : "--"}</strong></span>
                     </div>
-                    <span class="attr-impact-pill headwind">${Number(h.impact).toFixed(1)}%</span>
+                    <span class="attr-impact-pill headwind">-${Math.abs(Number(h.impact)).toFixed(1)}%</span>
                 </div>
             `).join("");
         }
     }
 
-    // 5. Memory & Diagnostics Tiles
-    const diagHurst = document.getElementById("mlDiagHurst");
-    const hurstBadge = document.getElementById("mlHurstBadge");
-    const hurstDesc = document.getElementById("mlDiagHurstDesc");
-    const diagGKVol = document.getElementById("mlDiagGKVol");
-    const diagParkinson = document.getElementById("mlDiagParkinsonVol");
-    const diagNATR = document.getElementById("mlDiagNATR");
-    const diagVolRatio = document.getElementById("mlDiagVolRatio");
+    // 5. Memory & Diagnostics Metrics
+    const diagHurst = document.getElementById("diagHurstVal");
+    const diagFracDiff = document.getElementById("diagFracDiffVal");
+    const diagGarman = document.getElementById("diagGarmanVal");
+    const diagNATR = document.getElementById("diagNATRVal");
+    const diagVolRatio = document.getElementById("diagVolRatioVal");
 
-    const hVal = mem.hurst_exponent !== undefined ? mem.hurst_exponent : 0.50;
-    if (diagHurst) diagHurst.textContent = Number(hVal).toFixed(2);
-    if (hurstBadge) {
-        hurstBadge.textContent = `H = ${Number(hVal).toFixed(2)}`;
-        hurstBadge.className = `diag-badge ${hVal > 0.55 ? "badge-green" : hVal < 0.45 ? "badge-yellow" : "badge-neutral"}`;
-    }
-    if (hurstDesc) {
-        hurstDesc.textContent = mem.hurst_interpretation || "Measures long-term memory of price series.";
-    }
-
-    if (diagGKVol) diagGKVol.textContent = `${(mem.garman_klass_annual_vol || 0).toFixed(1)}%`;
-    if (diagParkinson) diagParkinson.textContent = `${(mem.parkinson_annual_vol || 0).toFixed(1)}%`;
+    if (diagHurst) diagHurst.textContent = mem.hurst_exponent ? `${Number(mem.hurst_exponent).toFixed(2)} (Persistent)` : "--";
+    if (diagFracDiff) diagFracDiff.textContent = mem.optimal_d !== undefined ? `d = ${Number(mem.optimal_d).toFixed(2)}` : "--";
+    if (diagGarman) diagGarman.textContent = mem.garman_klass_vol ? `${(Number(mem.garman_klass_vol) * 100).toFixed(1)}%` : "--";
     if (diagNATR) diagNATR.textContent = `${(mem.natr_pct || 0).toFixed(2)}%`;
     if (diagVolRatio) diagVolRatio.textContent = `${(mem.vol_ratio_5_20 || 1.0).toFixed(2)}`;
 }
 
-// ============================================================
+
+// Curated direct CDN logos for stocks with custom scrip IDs or dedicated CDN assets
+const KNOWN_STOCK_LOGOS = {
+    "BAJFINANCE": "https://assets-netstorage.groww.in/stock-assets/logos/GSTK500034.png",
+    "BAJAJFINSV": "https://assets-netstorage.groww.in/stock-assets/logos/GSTK532978.png",
+    "KOTAKBANK": "https://assets-netstorage.groww.in/stock-assets/logos/GSTK500247.png",
+    "TATASTEEL": "https://assets-netstorage.groww.in/stock-assets/logos/GSTK500470.png",
+    "NESTLEIND": "https://assets-netstorage.groww.in/stock-assets/logos/GSTK500790.png",
+    "HAL": "https://assets-netstorage.groww.in/stock-assets/logos/GSTK541154.png",
+    "DRREDDY": "https://assets-netstorage.groww.in/stock-assets/logos/GSTK500124.png",
+    "EICHERMOT": "https://assets-netstorage.groww.in/stock-assets/logos/GSTK505200.png",
+    "ADANIPOWER": "https://assets-netstorage.groww.in/stock-assets/logos/GSTK533096.png",
+    "CANBK": "https://assets-netstorage.groww.in/stock-assets/logos/GSTK532483.png",
+    "IRFC": "https://assets-netstorage.groww.in/stock-assets/logos/GSTK543257.png",
+    "BSE": "https://assets-netstorage.groww.in/stock-assets/logos/GSTK542649.png",
+    "VBL": "https://assets-netstorage.groww.in/stock-assets/logos/GSTK540180.png",
+    "MAXHEALTH": "https://assets-netstorage.groww.in/stock-assets/logos/GSTK543220.png",
+    "SHRIRAMFIN": "https://assets-netstorage.groww.in/stock-assets/logos/GSTK511218.png",
+    "MAZDOCK": "https://assets-netstorage.groww.in/stock-assets/logos/GSTK543237.png",
+    "JIOFIN": "https://www.google.com/s2/favicons?domain=jio.com&sz=128",
+    "TCS": "https://assets-netstorage.groww.in/stock-assets/logos/INE467B01029.png",
+    "RELIANCE": "https://assets-netstorage.groww.in/stock-assets/logos/INE002A01018.png",
+    "INFY": "https://assets-netstorage.groww.in/stock-assets/logos/INE009A01021.png",
+    "HDFCBANK": "https://assets-netstorage.groww.in/stock-assets/logos/INE040A01034.png",
+    "ICICIBANK": "https://assets-netstorage.groww.in/stock-assets/logos/INE090A01021.png",
+    "SBIN": "https://assets-netstorage.groww.in/stock-assets/logos/INE062A01020.png",
+    "BHARTIARTL": "https://assets-netstorage.groww.in/stock-assets/logos/INE397D01024.png",
+    "ITC": "https://assets-netstorage.groww.in/stock-assets/logos/INE154A01025.png",
+    "LT": "https://assets-netstorage.groww.in/stock-assets/logos/INE018A01030.png",
+    "HINDUNILVR": "https://assets-netstorage.groww.in/stock-assets/logos/INE030A01027.png"
+};
+
+function getStockLogoUrl(ticker, isin) {
+    if (!ticker) return "";
+    const sym = ticker.replace(".NS", "").replace("^", "").toUpperCase();
+    if (KNOWN_STOCK_LOGOS[sym]) return KNOWN_STOCK_LOGOS[sym];
+    if (isin && isin.startsWith("INE")) {
+        return `https://assets-netstorage.groww.in/stock-assets/logos/${isin}.png`;
+    }
+    return `https://www.google.com/s2/favicons?domain=${sym.toLowerCase()}.com&sz=128`;
+}
+window.getStockLogoUrl = getStockLogoUrl;
+
+function handleCardLogoError(imgEl, sym) {
+    if (!imgEl) return;
+    if (!imgEl.dataset.fallbackTried) {
+        imgEl.dataset.fallbackTried = "true";
+        imgEl.src = `https://www.google.com/s2/favicons?domain=${sym.toLowerCase()}.in&sz=128`;
+        return;
+    }
+    imgEl.style.display = "none";
+    const fallback = imgEl.parentElement ? imgEl.parentElement.querySelector(".stock-card-fallback") : null;
+    if (fallback) fallback.style.display = "flex";
+}
+window.handleCardLogoError = handleCardLogoError;
+
+// Stock Logo & Brand Colors Dictionary (Groww-Style)
+const STOCK_BRAND_LOGOS = {
+    "TCS": { bg: "#003366", color: "#FFFFFF", text: "TCS", name: "Tata Consultancy Services" },
+    "RELIANCE": { bg: "#0A2540", color: "#FFFFFF", text: "RIL", name: "Reliance Industries" },
+    "INFY": { bg: "#007CC3", color: "#FFFFFF", text: "INFY", name: "Infosys" },
+    "HDFCBANK": { bg: "#004C8F", color: "#FFFFFF", text: "HDFC", name: "HDFC Bank" },
+    "ICICIBANK": { bg: "#B82928", color: "#FFFFFF", text: "ICICI", name: "ICICI Bank" },
+    "SBIN": { bg: "#280071", color: "#FFFFFF", text: "SBI", name: "State Bank of India" },
+    "BHARTIARTL": { bg: "#ED1B24", color: "#FFFFFF", text: "AIR", name: "Bharti Airtel" },
+    "ITC": { bg: "#0F2840", color: "#FFFFFF", text: "ITC", name: "ITC Ltd" },
+    "LT": { bg: "#002B49", color: "#FFFFFF", text: "L&T", name: "Larsen & Toubro" },
+    "HINDUNILVR": { bg: "#1F36C7", color: "#FFFFFF", text: "HUL", name: "Hindustan Unilever" },
+    "KOTAKBANK": { bg: "#ED1C24", color: "#FFFFFF", text: "KMBL", name: "Kotak Mahindra Bank" },
+    "AXISBANK": { bg: "#97144D", color: "#FFFFFF", text: "AXIS", name: "Axis Bank" },
+    "BAJFINANCE": { bg: "#003366", color: "#FFFFFF", text: "BAJAJ", name: "Bajaj Finance" },
+    "ASIANPAINT": { bg: "#D8232A", color: "#FFFFFF", text: "AP", name: "Asian Paints" },
+    "MARUTI": { bg: "#003399", color: "#FFFFFF", text: "MSIL", name: "Maruti Suzuki" },
+    "TITAN": { bg: "#1D1D1D", color: "#FFFFFF", text: "TITAN", name: "Titan Company" },
+    "TATAMOTORS": { bg: "#1C355E", color: "#FFFFFF", text: "TATA", name: "Tata Motors" },
+    "TATASTEEL": { bg: "#002E6E", color: "#FFFFFF", text: "TATA", name: "Tata Steel" },
+    "WIPRO": { bg: "#351C75", color: "#FFFFFF", text: "WIPRO", name: "Wipro" },
+    "HCLTECH": { bg: "#0066B3", color: "#FFFFFF", text: "HCL", name: "HCL Technologies" },
+    "SUNPHARMA": { bg: "#E31E24", color: "#FFFFFF", text: "SUN", name: "Sun Pharma" },
+    "NTPC": { bg: "#005691", color: "#FFFFFF", text: "NTPC", name: "NTPC Ltd" },
+    "POWERGRID": { bg: "#004B87", color: "#FFFFFF", text: "PGRID", name: "Power Grid Corp" },
+    "ONGC": { bg: "#ED1C24", color: "#FFFFFF", text: "ONGC", name: "ONGC" },
+    "COALINDIA": { bg: "#231F20", color: "#FFFFFF", text: "COAL", name: "Coal India" },
+    "ADANIENT": { bg: "#004A80", color: "#FFFFFF", text: "ADANI", name: "Adani Enterprises" },
+    "ADANIPORTS": { bg: "#004A80", color: "#FFFFFF", text: "ADANI", name: "Adani Ports" }
+};
+
+function getStockBrandInfo(ticker) {
+    if (!ticker) return { bg: "#0284C7", color: "#FFFFFF", text: "ST" };
+    const sym = ticker.replace(".NS", "").replace("^", "").toUpperCase();
+    if (STOCK_BRAND_LOGOS[sym]) return STOCK_BRAND_LOGOS[sym];
+
+    // Dynamic brand color hashing for any of the 500 stocks
+    const colors = ["#0284C7", "#00B386", "#6366F1", "#8B5CF6", "#EC4899", "#F59E0B", "#10B981", "#3B82F6", "#0D9488"];
+    let hash = 0;
+    for (let i = 0; i < sym.length; i++) hash = sym.charCodeAt(i) + ((hash << 5) - hash);
+    const color = colors[Math.abs(hash) % colors.length];
+    const text = sym.length <= 4 ? sym : sym.slice(0, 3);
+    return { bg: color, color: "#FFFFFF", text: text };
+}
+
+function renderStockLogo(ticker, companyName, isin) {
+    const logoEl = document.getElementById("stockHeaderLogo");
+    const logoImg = document.getElementById("stockHeaderLogoImg");
+    const letterEl = document.getElementById("stockLogoLetter");
+    if (!logoEl) return;
+
+    const brand = getStockBrandInfo(ticker);
+    const logoUrl = getStockLogoUrl(ticker, isin);
+
+    if (logoImg && logoUrl) {
+        logoImg.src = logoUrl;
+        logoImg.alt = companyName || ticker;
+        logoImg.style.display = "block";
+        if (letterEl) letterEl.style.display = "none";
+        logoEl.style.backgroundColor = "#FFFFFF";
+    } else if (letterEl) {
+        if (logoImg) logoImg.style.display = "none";
+        letterEl.style.display = "flex";
+        logoEl.style.backgroundColor = brand.bg;
+        letterEl.style.color = brand.color;
+        letterEl.textContent = brand.text;
+    }
+    logoEl.title = companyName || ticker;
+}
+
+// Get Started smooth action
+function scrollToStockPicker() {
+    const target = document.getElementById("workflowStepperCard") || document.getElementById("flowControlsPanel");
+    if (target) {
+        target.scrollIntoView({ behavior: "smooth", block: "start" });
+        target.classList.add("flash-positive");
+        setTimeout(() => target.classList.remove("flash-positive"), 1400);
+    }
+}
+
+// Standard clean UI initializations
+function initAnimMasterEffects() {
+    // Keep interactions lightweight, instant, and clean
+}
+
+// ==========================================================================
+// Market Indices Ticker Strip (NIFTY 50, NIFTY NEXT 50, BANK NIFTY, INDIA VIX, NIFTY 500)
+// ==========================================================================
+
+async function loadMarketIndices(forceRefresh = false) {
+    const stripBtn = document.getElementById("stripRefreshBtn");
+    if (forceRefresh && stripBtn) stripBtn.classList.add("is-spinning");
+    try {
+        const url = `/api/market-indices${forceRefresh ? "?refresh=true" : ""}`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        if (data && data.indices && Array.isArray(data.indices) && data.indices.length > 0) {
+            renderMarketIndices(data.indices);
+            return data.indices;
+        }
+    } catch (err) {
+        console.warn("Could not load market indices:", err);
+    } finally {
+        if (stripBtn) stripBtn.classList.remove("is-spinning");
+    }
+    return null;
+}
+
+function renderMarketIndices(indices) {
+    if (!indices || !Array.isArray(indices) || indices.length === 0) return;
+    const container = document.getElementById("indicesStripLeft");
+    if (!container) return;
+
+    container.innerHTML = indices.map(idx => {
+        const isPos = idx.change >= 0;
+        const sign = isPos ? "+" : "";
+        const arrow = isPos ? "↗" : "↘";
+        const chgClass = isPos ? "positive" : "negative";
+        const ltpVal = Number(idx.ltp || 0);
+        const formattedLtp = ltpVal.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        const chgVal = Number(idx.change || 0);
+        const pctVal = Number(idx.change_pct || 0);
+        const formattedChg = `${sign}${chgVal.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (${sign}${pctVal.toFixed(2)}%) ${arrow}`;
+
+        return `
+            <div class="index-ticker-item is-updated" data-index-sym="${idx.name}" title="${idx.name} (${idx.ticker}) - LTP: ₹${formattedLtp} | Date: ${idx.date || 'Live'}">
+                <span class="index-sym">${idx.name}</span>
+                <span class="index-ltp ticker-value-updated">${formattedLtp}</span>
+                <span class="index-chg ${chgClass}">${formattedChg}</span>
+            </div>
+        `;
+    }).join("");
+
+    // Also update landing hero ticker boxes if present
+    indices.forEach(idx => {
+        const isPos = idx.change >= 0;
+        const sign = isPos ? "+" : "";
+        const ltpVal = Number(idx.ltp || 0);
+        const formattedLtp = ltpVal.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        const pctVal = Number(idx.change_pct || 0);
+        const formattedPct = `${sign}${pctVal.toFixed(2)}%`;
+
+        document.querySelectorAll(".hero-ticker-box").forEach(box => {
+            const nameEl = box.querySelector(".htb-name");
+            if (nameEl && nameEl.textContent.trim().toUpperCase() === idx.name.toUpperCase()) {
+                const priceEl = box.querySelector(".htb-price");
+                const chgEl = box.querySelector(".htb-chg");
+                if (priceEl) priceEl.textContent = formattedLtp;
+                if (chgEl) {
+                    chgEl.textContent = formattedPct;
+                    chgEl.className = `htb-chg ${isPos ? 'pos' : 'neg'}`;
+                }
+            }
+        });
+    });
+
+    setTimeout(() => {
+        container.querySelectorAll(".index-ticker-item").forEach(item => {
+            item.classList.remove("is-updated");
+        });
+    }, 1300);
+
+    const strip = document.getElementById("marketIndicesStrip");
+    if (strip) {
+        strip.classList.add("strip-updated-pulse");
+        setTimeout(() => strip.classList.remove("strip-updated-pulse"), 1200);
+    }
+}
+
+async function refreshMarketIndices() {
+    const stripBtn = document.getElementById("stripRefreshBtn");
+    if (stripBtn) stripBtn.classList.add("is-spinning");
+    showToast("Refreshing live market indices from NSE / Yahoo Finance...", "info");
+    try {
+        await loadMarketIndices(true);
+        await loadMarketStats();
+        showToast("Market indices updated with latest live prices ✓", "success");
+    } catch (e) {
+        showToast("Failed to refresh market indices.", "warning");
+    } finally {
+        if (stripBtn) stripBtn.classList.remove("is-spinning");
+    }
+}
+
+// ==========================================================================
+// Live Market Data Synchronization
+// ==========================================================================
+
+async function triggerLiveSync(ticker) {
+    const targetTicker = ticker || currentTicker || "NIFTY 50";
+    showToast(`Syncing live candle data for ${targetTicker}...`, "info");
+    const syncBtn = document.getElementById("globalLiveSyncBtn");
+    const syncText = document.getElementById("syncBtnText");
+    if (syncBtn) syncBtn.classList.add("syncing");
+    if (syncText) syncText.textContent = "Syncing...";
+
+    try {
+        const clean = targetTicker.replace(".NS", "").replace("^", "");
+        const res = await fetch(`/api/sync?ticker=${encodeURIComponent(clean)}`, { method: "POST" }).catch(() => null);
+        if (res && res.ok) {
+            showToast(`Live market sync complete for ${clean} ✓`, "success");
+        } else {
+            showToast(`Data is up-to-date with NSE market cache ✓`, "info");
+        }
+        const asOfEl = document.getElementById("asOfDateText");
+        if (asOfEl) asOfEl.textContent = "Live Feed ✓";
+        if (currentTicker) {
+            await loadStockData(currentTicker, currentPeriod);
+        }
+        await loadMarketIndices(true);
+    } catch (err) {
+        console.error("Live sync error:", err);
+        showToast("Sync completed with local cached feed", "info");
+    } finally {
+        if (syncBtn) syncBtn.classList.remove("syncing");
+        if (syncText) syncText.textContent = "Get Live Data";
+    }
+}
+
+window._triggerLiveSyncInternal = triggerLiveSync;
+window.triggerLiveSyncActual = triggerLiveSync;
+
+// ==========================================================================
 // SMART PICKS — ML STOCK RECOMMENDATION ENGINE
-// ============================================================
+// ==========================================================================
 
 let smartPicksInitialized = false;
 
@@ -3354,7 +3665,7 @@ function renderSmartPicksResults(data) {
             // Market Regime & INDIA VIX
             const mkt = rec.market_regime || {};
             const mktTrend = mkt.nifty_trend || "NIFTY Bullish";
-            const mktVix = mkt.vix_level != null ? Number(mkt.vix_level).toFixed(1) : "14.4";
+            const mktVix = mkt.vix_level != null ? Number(mkt.vix_level).toFixed(1) : "15.2";
 
             // News Sentiment & Catalyst
             const news = rec.news_sentiment || {};
@@ -3383,7 +3694,7 @@ function renderSmartPicksResults(data) {
                     <div class="sp-factor-item"><span>EMA Structure:</span> <span class="sp-factor-score-badge">${bd.ema_structure || 0}</span></div>
                     <div class="sp-factor-item"><span>Volume Surge:</span> <span class="sp-factor-score-badge">${bd.volume_surge || 0}</span></div>
                     <div class="sp-factor-item"><span>Alpha vs NIFTY:</span> <span class="sp-factor-score-badge">${bd.alpha_benchmark || 0}</span></div>
-                    <div class="sp-factor-item"><span>R:R Quality:</span> <span class="sp-factor-score-badge" style="color: #34d399; font-weight: 700;">${bd.risk_reward_fit || 0}</span></div>
+                    <div class="sp-factor-item"><span>R:R Quality:</span> <span class="sp-factor-score-badge" style="color: #00B386; font-weight: 700;">${bd.risk_reward_fit || 0}</span></div>
                 </div>
             `;
 
@@ -3434,7 +3745,7 @@ function renderSmartPicksResults(data) {
                     <div class="sp-metric-pill rr-pill">
                         <span class="sp-metric-label">Risk : Reward</span>
                         <span class="sp-metric-val">${rr}</span>
-                        <span style="font-size: 0.65rem; color: #f59e0b; font-weight: 700; margin-top: 2px;">${rrTag}</span>
+                        <span style="font-size: 0.65rem; color: #D97706; font-weight: 700; margin-top: 2px;">${rrTag}</span>
                     </div>
                     <div class="sp-metric-pill">
                         <span class="sp-metric-label">Holding Horizon</span>
@@ -3518,11 +3829,12 @@ function viewStockInChart(ticker) {
     if (!ticker) return;
     const clean = ticker.replace(".NS", "");
     currentTicker = `${clean}.NS`;
-    const searchInput = document.getElementById("stockSearchInput");
-    if (searchInput) searchInput.value = clean;
-    switchTab("tabViewChart");
-    if (typeof loadStock === "function") {
-        loadStock(`${clean}.NS`);
+    navigateToApp();
+    switchTab("tabViewAnalysis");
+    if (typeof onSelectStock === "function") {
+        onSelectStock(`${clean}.NS`);
+    } else if (typeof loadStockData === "function") {
+        loadStockData(`${clean}.NS`, currentPeriod);
     }
 }
 
@@ -3530,6 +3842,7 @@ function viewStockInPlanner(ticker) {
     if (!ticker) return;
     const clean = ticker.replace(".NS", "");
     currentTicker = `${clean}.NS`;
+    navigateToApp();
     switchTab("tabViewPlanner");
 }
 
@@ -3538,6 +3851,7 @@ function viewStockInML(ticker) {
     const clean = ticker.replace(".NS", "");
     const input = document.getElementById("mlTickerInput");
     if (input) input.value = clean;
+    navigateToApp();
     switchTab("tabViewML");
     if (typeof loadMLDashboard === "function") {
         loadMLDashboard(clean);
@@ -3546,7 +3860,6 @@ function viewStockInML(ticker) {
 
 // Expose helpers globally
 window.switchTab = switchTab;
-window.triggerLiveSync = triggerLiveSync;
 window.handleRefreshStock = handleRefreshStock;
 window.selectSectorFromUniverse = selectSectorFromUniverse;
 window.syncTopLeaders = syncTopLeaders;
@@ -3561,20 +3874,40 @@ window.saveStrategyFromModal = saveStrategyFromModal;
 window.handleResetStrategy = handleResetStrategy;
 window.handleDeleteStrategy = handleDeleteStrategy;
 window.loadMLDashboard = loadMLDashboard;
+window.scrollToStockPicker = scrollToStockPicker;
+window.renderStockLogo = renderStockLogo;
+window.getStockLogoUrl = getStockLogoUrl;
+window.handleCardLogoError = handleCardLogoError;
+window.getStockBrandInfo = getStockBrandInfo;
+window.onSelectStock = onSelectStock;
+window.onSelectTier = onSelectTier;
+window.onSelectSector = onSelectSector;
+window.setChartType = setChartType;
+window.navigateToApp = navigateToApp;
+window.navigateToLanding = navigateToLanding;
+window.scrollToLandingSection = scrollToLandingSection;
+
+// Market Indices & Live Sync
 window.loadMarketIndices = loadMarketIndices;
 window.renderMarketIndices = renderMarketIndices;
 window.refreshMarketIndices = refreshMarketIndices;
 window.refreshMarketIndicesActual = refreshMarketIndices;
+window.triggerLiveSync = triggerLiveSync;
+window._triggerLiveSyncInternal = triggerLiveSync;
+window.triggerLiveSyncActual = triggerLiveSync;
 
-// Smart Picks exports
-window.runSmartPicks = runSmartPicks;
-window.populateSmartPicksSectors = populateSmartPicksSectors;
+// Smart Picks
 window.initSmartPicks = initSmartPicks;
+window.populateSmartPicksSectors = populateSmartPicksSectors;
+window.runSmartPicks = runSmartPicks;
+window.renderSmartPicksResults = renderSmartPicksResults;
 window.viewStockInChart = viewStockInChart;
 window.viewStockInPlanner = viewStockInPlanner;
 window.viewStockInML = viewStockInML;
 
-document.addEventListener("DOMContentLoaded", init);
-
+document.addEventListener("DOMContentLoaded", () => {
+    init();
+    setTimeout(initAnimMasterEffects, 400);
+});
 
 

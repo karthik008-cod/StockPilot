@@ -1,54 +1,375 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>StockPilot | Multi-Timeframe Strategy & Market Explorer</title>
-    <meta name="description" content="StockPilot - Multi-timeframe strategy scanner, stock analysis, and trade planning for Indian equities. NIFTY 50/100/200/500 coverage with Wilder RSI technical setups.">
+    <meta name="description"
+        content="StockPilot - Multi-timeframe strategy scanner, stock analysis, and trade planning for Indian equities. NIFTY 50/100/200/500 coverage with Wilder RSI technical setups.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/style.css?v=20261012_indices_live">
-    <script>
-        function triggerLiveSync(ticker) {
-            if (window._triggerLiveSyncInternal) {
-                return window._triggerLiveSyncInternal(ticker);
-            } else if (window.triggerLiveSyncActual) {
-                return window.triggerLiveSyncActual(ticker);
-            }
-        }
-        function refreshMarketIndices() {
-            if (window.refreshMarketIndicesActual) {
-                return window.refreshMarketIndicesActual();
-            } else if (window.loadMarketIndices) {
-                return window.loadMarketIndices(true);
-            }
-        }
-    </script>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css?v=20261013_shiva_redesign_v2">
 </head>
+
 <body>
 
-    <div class="app-container">
-        <!-- Top Navigation Bar -->
-        <header class="navbar">
-            <div class="nav-left">
-                <div class="nav-brand">
-                    <div class="brand-logo">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+    <!-- ============================================================== -->
+    <!-- VIEW 1: DEDICATED LANDING PAGE -->
+    <!-- ============================================================== -->
+    <div id="viewLandingPage" class="landing-page-root">
+        <!-- Landing Navbar -->
+        <header class="landing-navbar">
+            <div class="landing-nav-inner">
+                <a href="#" class="landing-brand" onclick="navigateToLanding(event)">
+                    <div class="brand-logo-mark">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                             <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
                             <polyline points="2 17 12 22 22 17"></polyline>
                             <polyline points="2 12 12 17 22 12"></polyline>
                         </svg>
                     </div>
-                    <span class="brand-title">StockPilot</span>
+                    <span class="landing-brand-text">StockPilot</span>
+                </a>
+
+                <nav class="landing-nav-links">
+                    <a href="#about" class="landing-nav-link" onclick="scrollToLandingSection('about', event)">About</a>
+                    <a href="#features" class="landing-nav-link" onclick="scrollToLandingSection('features', event)">Features</a>
+                    <a href="#how-it-works" class="landing-nav-link" onclick="scrollToLandingSection('how-it-works', event)">How It Works</a>
+                </nav>
+
+                <div class="landing-nav-actions">
+                    <button type="button" class="btn btn-landing-cta" id="btnNavGetStarted" onclick="navigateToApp()">
+                        <span>Get Started</span>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                            <polyline points="12 5 19 12 12 19"></polyline>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Hero Section with Bright BSE Bull Background -->
+        <section class="landing-hero-section">
+            <div class="landing-hero-container">
+                <div class="hero-text-col">
+                    <h1 class="hero-title">
+                        StockPilot<br>
+                        <span class="hero-title-accent">Multi-Timeframe Strategy Engine</span>
+                    </h1>
+
+                    <p class="hero-subtitle">
+                        Systematic stock scanning, Wilder RSI setups, and disciplined risk-adjusted trade planning across NIFTY 50, 100, 200, and 500 stocks.
+                    </p>
+
+                    <div class="hero-actions-row">
+                        <button type="button" class="btn btn-hero-primary" id="btnHeroGetStarted" onclick="navigateToApp()">
+                            <span>Get Started</span>
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                <line x1="5" y1="12" x2="19" y2="12"></line>
+                                <polyline points="12 5 19 12 12 19"></polyline>
+                            </svg>
+                        </button>
+                        <a href="#how-it-works" class="btn btn-hero-secondary" onclick="scrollToLandingSection('how-it-works', event)">
+                            Explore Workflow
+                        </a>
+                    </div>
+
+                    <div class="hero-market-tickers">
+                        <div class="hero-ticker-box">
+                            <span class="htb-name">NIFTY 50</span>
+                            <span class="htb-price">24,812.30</span>
+                            <span class="htb-chg neg">-1.64%</span>
+                        </div>
+                        <div class="hero-ticker-box">
+                            <span class="htb-name">BANK NIFTY</span>
+                            <span class="htb-price">54,515.05</span>
+                            <span class="htb-chg neg">-0.98%</span>
+                        </div>
+                        <div class="hero-ticker-box">
+                            <span class="htb-name">INDIA VIX</span>
+                            <span class="htb-price">15.28</span>
+                            <span class="htb-chg pos">+10.01%</span>
+                        </div>
+                        <div class="hero-ticker-box">
+                            <span class="htb-name">NSE COVERAGE</span>
+                            <span class="htb-price">501</span>
+                            <span class="htb-chg pos">Stocks</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Trust & Feature Strip -->
+        <section class="landing-trust-strip">
+            <div class="trust-strip-inner">
+                <div class="trust-item">
+                    <div class="trust-icon-wrap">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+                        </svg>
+                    </div>
+                    <div class="trust-text">
+                        <h4>Multi-Timeframe Analysis</h4>
+                        <p>Simultaneous daily, weekly, and monthly trend evaluation with Wilder RSI</p>
+                    </div>
+                </div>
+                <div class="trust-item">
+                    <div class="trust-icon-wrap">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                        </svg>
+                    </div>
+                    <div class="trust-text">
+                        <h4>Disciplined Risk Management</h4>
+                        <p>Quantitative position sizing, ATR-based stops, and 1-2% max capital risk rules</p>
+                    </div>
+                </div>
+                <div class="trust-item">
+                    <div class="trust-icon-wrap">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <path d="M12 6v6l4 2"></path>
+                        </svg>
+                    </div>
+                    <div class="trust-text">
+                        <h4>AI / ML Regime Detection</h4>
+                        <p>Gaussian Mixture Models (GMM) and Hurst Exponent persistence metrics</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- How It Works Section (4-Step Explanatory Workflow) -->
+        <section class="landing-workflow-section" id="how-it-works">
+            <div class="section-container">
+                <div class="section-heading-center">
+                    <span class="section-pill">SYSTEMATIC METHODOLOGY</span>
+                    <h2 class="section-title">How It Works</h2>
+                    <p class="section-subtitle">A disciplined four-step pipeline from universe selection to risk-adjusted trade execution.</p>
                 </div>
 
+                <div class="workflow-cards-track">
+                    <!-- Step 1 -->
+                    <div class="wf-step-card">
+                        <div class="wf-step-header">
+                            <span class="wf-step-num">01</span>
+                            <div class="wf-step-icon">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <rect x="3" y="3" width="7" height="7"></rect>
+                                    <rect x="14" y="3" width="7" height="7"></rect>
+                                    <rect x="14" y="14" width="7" height="7"></rect>
+                                    <rect x="3" y="14" width="7" height="7"></rect>
+                                </svg>
+                            </div>
+                        </div>
+                        <h3 class="wf-step-title">Select Index</h3>
+                        <p class="wf-step-desc">Choose your market universe: NIFTY 50 blue chips, NIFTY 100, NIFTY 200, or broad NIFTY 500 equities.</p>
+                        <div class="wf-step-meta">50 to 501 Equities</div>
+                    </div>
+
+                    <div class="wf-step-arrow">→</div>
+
+                    <!-- Step 2 -->
+                    <div class="wf-step-card">
+                        <div class="wf-step-header">
+                            <span class="wf-step-num">02</span>
+                            <div class="wf-step-icon">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M21.21 15.89A10 10 0 1 1 8 2.83"></path>
+                                    <path d="M22 12A10 10 0 0 0 12 2v10z"></path>
+                                </svg>
+                            </div>
+                        </div>
+                        <h3 class="wf-step-title">Select Sector</h3>
+                        <p class="wf-step-desc">Narrow your scan to high-momentum industries like IT, Financial Services, Auto, Pharma, or Energy.</p>
+                        <div class="wf-step-meta">Targeted Industry Focus</div>
+                    </div>
+
+                    <div class="wf-step-arrow">→</div>
+
+                    <!-- Step 3 -->
+                    <div class="wf-step-card">
+                        <div class="wf-step-header">
+                            <span class="wf-step-num">03</span>
+                            <div class="wf-step-icon">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <line x1="18" y1="20" x2="18" y2="10"></line>
+                                    <line x1="12" y1="20" x2="12" y2="4"></line>
+                                    <line x1="6" y1="20" x2="6" y2="14"></line>
+                                </svg>
+                            </div>
+                        </div>
+                        <h3 class="wf-step-title">Analyze Stock</h3>
+                        <p class="wf-step-desc">Inspect multi-year OHLCV charts, volume trends, company fundamentals, circuit bands, and Wilder RSI signals.</p>
+                        <div class="wf-step-meta">Deep Technical Inspection</div>
+                    </div>
+
+                    <div class="wf-step-arrow">→</div>
+
+                    <!-- Step 4 -->
+                    <div class="wf-step-card highlight">
+                        <div class="wf-step-header">
+                            <span class="wf-step-num">04</span>
+                            <div class="wf-step-icon">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <circle cx="12" cy="12" r="10"></circle>
+                                    <polyline points="12 6 12 12 14 14"></polyline>
+                                </svg>
+                            </div>
+                        </div>
+                        <h3 class="wf-step-title">Plan Your Trade</h3>
+                        <p class="wf-step-desc">Calculate exact share position sizing, stop-loss thresholds, holding periods, and borrow interest before execution.</p>
+                        <div class="wf-step-meta">Capital Protection First</div>
+                    </div>
+                </div>
+
+                <div class="workflow-quote-box">
+                    <span class="quote-tag">CORE PHILOSOPHY</span>
+                    <p class="quote-text">"No trades is much, much better than loss trades. Only enter when institutional setup criteria are fully verified."</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Features Section -->
+        <section class="landing-features-section" id="features">
+            <div class="section-container">
+                <div class="section-heading-center">
+                    <span class="section-pill">POWERFUL CAPABILITIES</span>
+                    <h2 class="section-title">Built for Serious Indian Market Analysis</h2>
+                    <p class="section-subtitle">Comprehensive tools engineered for swing traders, positional analysts, and disciplined investors.</p>
+                </div>
+
+                <div class="features-grid">
+                    <div class="feature-card">
+                        <div class="feature-icon-box">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="11" cy="11" r="8"></circle>
+                                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                            </svg>
+                        </div>
+                        <h3>Technical Strategy Scanner</h3>
+                        <p>Scan 500+ NSE stocks in real-time against verified multi-timeframe setups including RSI pullbacks, moving average crossovers, and 52-week breakouts.</p>
+                    </div>
+
+                    <div class="feature-card">
+                        <div class="feature-icon-box">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                                <line x1="8" y1="21" x2="16" y2="21"></line>
+                                <line x1="12" y1="17" x2="12" y2="21"></line>
+                            </svg>
+                        </div>
+                        <h3>Dedicated Candlestick Terminal</h3>
+                        <p>High-contrast dark chart canvas with real candlestick bodies, volume histogram, timeframe switching (1M, 6M, 1Y, 3Y, Max), and precise hover inspection.</p>
+                    </div>
+
+                    <div class="feature-card">
+                        <div class="feature-icon-box">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+                            </svg>
+                        </div>
+                        <h3>Trade Planner & Sizing</h3>
+                        <p>Automate portfolio risk sizing based on predefined loss caps (e.g. ₹2,000 max loss per trade), holding horizons, and cost of borrowed leverage.</p>
+                    </div>
+
+                    <div class="feature-card">
+                        <div class="feature-icon-box">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                            </svg>
+                        </div>
+                        <h3>AI / ML Market Regimes</h3>
+                        <p>Gaussian Mixture Models uncover underlying market regime dynamics (Bullish Trend, Consolidation, High Volatility) with Hurst Exponent trend persistence.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- About Section -->
+        <section class="landing-about-section" id="about">
+            <div class="section-container">
+                <div class="about-card-inner">
+                    <div class="about-text-content">
+                        <span class="section-pill">ABOUT STOCKPILOT</span>
+                        <h2 class="about-title">Disciplined Equities Analysis, Backed by Data</h2>
+                        <p>StockPilot is developed specifically for the Indian equity markets (NSE). Traditional indicators often produce noise when viewed on a single timeframe. By synchronizing multi-timeframe Wilder RSI, institutional volume confirmation, and quantitative risk sizing, StockPilot ensures traders only allocate capital when odds are aligned.</p>
+                        <p>Whether analyzing blue-chip NIFTY 50 giants like TCS and Reliance or discovering mid-cap sector momentum, StockPilot provides the analytical depth of an institutional terminal in a clean, modern interface.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Landing Footer -->
+        <footer class="landing-footer">
+            <div class="landing-footer-inner">
+                <div class="footer-brand-col">
+                    <div class="footer-brand-logo">
+                        <div class="brand-logo-mark">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                                <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+                                <polyline points="2 17 12 22 22 17"></polyline>
+                                <polyline points="2 12 12 17 22 12"></polyline>
+                            </svg>
+                        </div>
+                        <span class="footer-brand-text">StockPilot</span>
+                    </div>
+                    <p class="footer-tagline">Multi-timeframe stock analysis and trading strategy platform for the Indian stock market.</p>
+                </div>
+                <div class="footer-links-col">
+                    <h4>Navigation</h4>
+                    <a href="#about" onclick="scrollToLandingSection('about', event)">About</a>
+                    <a href="#features" onclick="scrollToLandingSection('features', event)">Features</a>
+                    <a href="#how-it-works" onclick="scrollToLandingSection('how-it-works', event)">How It Works</a>
+                    <a href="#" onclick="navigateToApp(); return false;">Launch Terminal</a>
+                </div>
+                <div class="footer-disclaimer-col">
+                    <h4>Compliance & Disclaimer</h4>
+                    <p>StockPilot is an educational and analytical research platform. It does not provide SEBI-registered investment advice or guarantee profits. Market investments are subject to market risks.</p>
+                    <p class="footer-copy">&copy; 2026 StockPilot. All rights reserved.</p>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <!-- ============================================================== -->
+    <!-- VIEW 2: TRADING DASHBOARD APPLICATION -->
+    <!-- ============================================================== -->
+    <div id="viewAppDashboard" class="view-app-dashboard" style="display: none;">
+        <div class="app-container">
+            <!-- Top Navigation Bar -->
+            <header class="navbar">
+                <div class="nav-left">
+                    <div class="nav-brand" onclick="navigateToLanding(event)" title="Return to Landing Page" style="cursor: pointer;">
+                        <div class="brand-logo">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+                                <polyline points="2 17 12 22 22 17"></polyline>
+                                <polyline points="2 12 12 17 22 12"></polyline>
+                            </svg>
+                        </div>
+                        <span class="brand-title">StockPilot</span>
+                        <span class="brand-return-pill">← Home</span>
+                    </div>
+
                 <nav class="nav-links" id="mainTabNav">
-                    <button type="button" class="nav-link active" data-tab="tabViewAnalysis" onclick="switchTab('tabViewAnalysis')">Stock Analysis</button>
-                    <button type="button" class="nav-link" data-tab="tabViewScanner" onclick="switchTab('tabViewScanner')">Strategy Scanner</button>
-                    <button type="button" class="nav-link" data-tab="tabViewPlanner" onclick="switchTab('tabViewPlanner')">Trade Planner</button>
-                    <button type="button" class="nav-link" data-tab="tabViewUniverse" onclick="switchTab('tabViewUniverse')">Universe & Sync</button>
-                    <button type="button" class="nav-link" data-tab="tabViewSmartPicks" onclick="switchTab('tabViewSmartPicks')">?? Smart Picks</button>
+                    <button type="button" class="nav-link active" data-tab="tabViewAnalysis"
+                        onclick="switchTab('tabViewAnalysis')">Stock Analysis</button>
+                    <button type="button" class="nav-link" data-tab="tabViewScanner"
+                        onclick="switchTab('tabViewScanner')">Strategy Scanner</button>
+                    <button type="button" class="nav-link" data-tab="tabViewPlanner"
+                        onclick="switchTab('tabViewPlanner')">Trade Planner</button>
+                    <button type="button" class="nav-link" data-tab="tabViewUniverse"
+                        onclick="switchTab('tabViewUniverse')">Universe & Sync</button>
+                    <button type="button" class="nav-link" data-tab="tabViewSmartPicks"
+                        onclick="switchTab('tabViewSmartPicks')">🎯 Smart Picks</button>
                     <button type="button" class="nav-link" data-tab="tabViewML" onclick="switchTab('tabViewML')">AI / ML Engine</button>
                 </nav>
             </div>
@@ -76,38 +397,39 @@
         </header>
 
         <!-- Dhan-Style Market Indices Ticker Strip -->
+                <!-- Dhan-Style Market Indices Ticker Strip -->
         <div class="market-indices-strip" id="marketIndicesStrip" title="Market Indices Strip - Auto-refreshed live with NSE / Yahoo Finance">
             <div class="indices-strip-left" id="indicesStripLeft">
                 <div class="index-ticker-item" data-index-sym="NIFTY 50">
                     <span class="index-sym">NIFTY 50</span>
-                    <span class="index-ltp" id="idx_ltp_nifty50">22,363.35</span>
-                    <span class="index-chg negative" id="idx_chg_nifty50">-157.10 (-0.70%) ↘</span>
+                    <span class="index-ltp" id="idx_ltp_nifty50">24,812.30</span>
+                    <span class="index-chg negative" id="idx_chg_nifty50">-371.25 (-1.64%) ↘</span>
                 </div>
                 <div class="index-ticker-item" data-index-sym="NIFTY NEXT 50">
                     <span class="index-sym">NIFTY NEXT 50</span>
-                    <span class="index-ltp" id="idx_ltp_niftynext50">68,351.70</span>
-                    <span class="index-chg positive" id="idx_chg_niftynext50">+185.00 (+0.27%) ↗</span>
+                    <span class="index-ltp" id="idx_ltp_niftynext50">67,614.50</span>
+                    <span class="index-chg negative" id="idx_chg_niftynext50">-1,789.50 (-2.58%) ↘</span>
                 </div>
                 <div class="index-ticker-item" data-index-sym="BANK NIFTY">
                     <span class="index-sym">BANK NIFTY</span>
-                    <span class="index-ltp" id="idx_ltp_banknifty">54,918.00</span>
-                    <span class="index-chg negative" id="idx_chg_banknifty">-338.65 (-0.61%) ↘</span>
+                    <span class="index-ltp" id="idx_ltp_banknifty">54,515.05</span>
+                    <span class="index-chg negative" id="idx_chg_banknifty">-540.50 (-0.98%) ↘</span>
                 </div>
                 <div class="index-ticker-item" data-index-sym="INDIA VIX">
                     <span class="index-sym">INDIA VIX</span>
-                    <span class="index-ltp" id="idx_ltp_indiavix">15.25</span>
-                    <span class="index-chg positive" id="idx_chg_indiavix">+0.87 (+6.07%) ↗</span>
+                    <span class="index-ltp" id="idx_ltp_indiavix">15.28</span>
+                    <span class="index-chg positive" id="idx_chg_indiavix">+1.39 (+10.01%) ↗</span>
                 </div>
                 <div class="index-ticker-item" data-index-sym="NIFTY 500">
                     <span class="index-sym">NIFTY 500</span>
-                    <span class="index-ltp" id="idx_ltp_nifty500">21,822.75</span>
-                    <span class="index-chg negative" id="idx_chg_nifty500">-43.90 (-0.20%) ↘</span>
+                    <span class="index-ltp" id="idx_ltp_nifty500">23,140.80</span>
+                    <span class="index-chg negative" id="idx_chg_nifty500">-280.10 (-1.20%) ↘</span>
                 </div>
             </div>
             <div class="indices-strip-right">
                 <div class="index-quick-stat">
                     <span class="iqs-label">Max Risk:</span>
-                    <span class="iqs-value" id="navMaxLossDisplay">₹2,000.00</span>
+                    <span class="iqs-value" id="navMaxLossDisplay">₹2,000</span>
                 </div>
                 <div class="index-quick-stat">
                     <span class="iqs-label">Coverage:</span>
@@ -123,12 +445,21 @@
         <div id="toastNotification" class="toast-notification"></div>
 
         <!-- ============================================================== -->
-        <!-- TAB 1: STOCK ANALYSIS -->
+        <!-- TAB 1: STOCK ANALYSIS (Front Page) -->
         <!-- ============================================================== -->
         <div class="app-tab-pane active" id="tabViewAnalysis">
 
+            <!-- Analysis Top Header -->
+            <div class="analysis-view-header">
+                <div class="avh-title-group">
+                    <span class="avh-badge">INSTITUTIONAL WORKSPACE</span>
+                    <h1 class="avh-title">Stock Analysis & Technical Explorer</h1>
+                    <p class="avh-desc">Execute multi-timeframe research across 500+ Indian equities. Select your index universe, narrow by sector, and inspect Wilder RSI setups.</p>
+                </div>
+            </div>
+
             <!-- Progressive Workflow Stepper -->
-            <section class="workflow-stepper-card" id="workflowStepperCard">
+            <section class="workflow-stepper-card anim-reveal" id="workflowStepperCard">
                 <div class="stepper-header">
                     <div class="stepper-title-wrap">
                         <span class="stepper-pill">ANALYSIS PIPELINE</span>
@@ -196,7 +527,8 @@
                         <span class="step-section-number">1</span>
                         <div>
                             <h3 class="step-section-title">Select Index Universe</h3>
-                            <p class="step-section-hint">Choose which market index universe to scan (NIFTY 50 blue chips up to NIFTY 500 broad market).</p>
+                            <p class="step-section-hint">Choose which market index universe to scan (NIFTY 50 blue chips
+                                up to NIFTY 500 broad market).</p>
                         </div>
                     </div>
                     <div class="tier-buttons-grid" id="tierToggleGroup">
@@ -244,7 +576,8 @@
                         <span class="step-section-number">2</span>
                         <div>
                             <h3 class="step-section-title">Select Sector / Industry</h3>
-                            <p class="step-section-hint" id="step2Hint">Select an Index above to unlock sector filtering.</p>
+                            <p class="step-section-hint" id="step2Hint">Select an Index above to unlock sector
+                                filtering.</p>
                         </div>
                     </div>
                     <div class="flow-controls-row">
@@ -253,7 +586,7 @@
                                 <select id="sectorSelect" class="custom-select" disabled>
                                     <option value="" disabled selected>Select an Index first...</option>
                                 </select>
-                                <span class="select-arrow">▼</span>
+                                <span class="select-arrow">Ôû╝</span>
                             </div>
                         </div>
                     </div>
@@ -269,19 +602,15 @@
                             <p class="step-section-hint" id="step3Hint">Select a Sector above to unlock stock constituents.</p>
                         </div>
                     </div>
-                    <div class="flow-controls-row">
-                        <div class="control-group stock-selector-group flex-1">
-                            <div class="select-wrapper">
-                                <select id="stockSelect" class="custom-select" disabled>
-                                    <option value="" disabled selected>Select a Sector first...</option>
-                                </select>
-                                <span class="select-arrow">▼</span>
-                            </div>
-                        </div>
 
-                        <div class="control-group search-group" style="min-width: 240px;">
-                            <div class="search-wrapper">
-                                <input type="text" id="tableSearch" placeholder="Search by Date or Symbol..." class="search-input" disabled>
+                    <div class="flow-controls-row">
+                        <div class="control-group stock-search-control flex-1">
+                            <div class="stock-search-input-wrap">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                                    <circle cx="11" cy="11" r="8"></circle>
+                                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                                </svg>
+                                <input type="text" id="stockPickerSearch" placeholder="Search stock by name or symbol (e.g. TCS, Reliance, INFY)..." class="stock-search-input" disabled>
                             </div>
                         </div>
 
@@ -296,53 +625,33 @@
                         </div>
 
                         <div class="toolbar-actions">
-                            <button id="refreshBtn" class="btn btn-secondary btn-sync-stock" onclick="triggerLiveSync()" title="Fetch latest live market data for selected stock">
-                                <svg class="sync-icon-sm" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 5px;">
-                                    <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.19"></path>
-                                </svg>
-                                <span id="refreshBtnText">Get Live Data</span>
+                            <button id="refreshBtn" class="btn btn-secondary" title="Fetch latest live market data" disabled>
+                                Refresh Data
                             </button>
                             <button id="exportCsvBtn" class="btn btn-primary" title="Export CSV" disabled>
                                 Export CSV
                             </button>
                         </div>
                     </div>
+
+                    <!-- Interactive Stock Cards Picker Grid with Real Company Logos -->
+                    <div id="stockPickerGrid" class="stock-picker-grid" style="display: none;"></div>
+
+                    <!-- Hidden compatibility elements -->
+                    <select id="stockSelect" class="custom-select" style="display: none;" disabled>
+                        <option value="" disabled selected>Select a Sector first...</option>
+                    </select>
+                    <input type="text" id="tableSearch" style="display: none;" disabled>
                 </div>
             </section>
 
-            <!-- Guided Flow State -->
-            <section class="guided-flow-card" id="guidedFlowState">
-                <h3 class="guided-flow-title">Follow the Flow to Begin Analysis</h3>
-                <p class="guided-flow-desc">
-                    StockPilot enforces a disciplined, top-down workflow:
-                    <strong>Index Universe</strong> → <strong>Sector</strong> → <strong>Stock</strong> → <strong>Trade Setup & Risk Sizing</strong>.
-                </p>
-                <div class="guided-flow-rule-badge">
-                    <span><strong>Core Principle:</strong> No trades is much, much better than loss trades. Only take high-conviction setups.</span>
-                </div>
-                <div class="guided-flow-steps-grid">
-                    <div class="guided-step-item" id="guideStep1Box">
-                        <span class="guide-step-num">Step 1</span>
-                        <span class="guide-step-label">Select Index</span>
-                        <span class="guide-step-status" id="guideStep1Status">Choose above</span>
-                    </div>
-                    <div class="guided-step-item" id="guideStep2Box">
-                        <span class="guide-step-num">Step 2</span>
-                        <span class="guide-step-label">Select Sector</span>
-                        <span class="guide-step-status" id="guideStep2Status">Locked</span>
-                    </div>
-                    <div class="guided-step-item" id="guideStep3Box">
-                        <span class="guide-step-num">Step 3</span>
-                        <span class="guide-step-label">Select Stock</span>
-                        <span class="guide-step-status" id="guideStep3Status">Locked</span>
-                    </div>
-                    <div class="guided-step-item" id="guideStep4Box">
-                        <span class="guide-step-num">Step 4</span>
-                        <span class="guide-step-label">Trade Plan & Sizing</span>
-                        <span class="guide-step-status" id="guideStep4Status">Locked</span>
-                    </div>
-                </div>
-            </section>
+            <!-- Guided Flow State (Preserved for status indicators, hidden) -->
+            <div id="guidedFlowState" style="display: none;">
+                <span id="guideStep1Status"></span>
+                <span id="guideStep2Status"></span>
+                <span id="guideStep3Status"></span>
+                <span id="guideStep4Status"></span>
+            </div>
 
             <!-- Stock Workspace -->
             <div id="stockWorkspace" class="stock-workspace" style="display: none;">
@@ -350,11 +659,17 @@
                 <!-- Summary Ribbon -->
                 <section id="summaryRibbon" class="summary-grid">
                     <div class="summary-card main-stock-card">
-                        <div class="stock-header">
-                            <div id="companyName" class="company-name">Loading...</div>
-                            <div class="ticker-badges">
-                                <span id="tickerBadge" class="ticker-badge">---</span>
-                                <span id="sectorBadge" class="sector-badge">---</span>
+                        <div class="stock-header stock-header-with-logo">
+                            <div class="stock-logo-wrap" id="stockHeaderLogo">
+                                <img id="stockHeaderLogoImg" src="" alt="Company Logo" class="stock-header-logo-img" style="display: none;" onerror="this.style.display='none'; document.getElementById('stockLogoLetter').style.display='flex';" />
+                                <span id="stockLogoLetter">ST</span>
+                            </div>
+                            <div class="stock-info-col">
+                                <div id="companyName" class="company-name">Loading...</div>
+                                <div class="ticker-badges">
+                                    <span id="tickerBadge" class="ticker-badge">---</span>
+                                    <span id="sectorBadge" class="sector-badge">---</span>
+                                </div>
                             </div>
                         </div>
                         <div class="price-display">
@@ -363,7 +678,8 @@
                         </div>
                         <div class="as-of-date">
                             <span>Latest Date: <strong id="latestDate">--</strong></span>
-                            <button id="quickRefreshLink" class="quick-sync-link" title="Fetch latest candle">Sync Latest</button>
+                            <button id="quickRefreshLink" class="quick-sync-link" title="Fetch latest candle">Sync
+                                Latest</button>
                         </div>
                     </div>
 
@@ -417,7 +733,8 @@
                 <div class="quick-planner-banner">
                     <div class="planner-banner-left">
                         <span class="banner-badge">POSITION SIZING</span>
-                        <h4>Ready to plan entry, targets & stop-loss for <span id="quickStockName">this stock</span>?</h4>
+                        <h4>Ready to plan entry, targets & stop-loss for <span id="quickStockName">this stock</span>?
+                        </h4>
                         <p>Calculate position sizing, holding horizons, and verify multi-timeframe strategy signals.</p>
                     </div>
                     <button class="btn btn-primary" id="btnGoToPlanner">
@@ -486,11 +803,13 @@
                         <div class="detail-metrics-list">
                             <div class="detail-metric-row">
                                 <div class="metric-cell">
-                                    <span class="metric-label">52 Week High (<span id="high52Date" class="date-sub">--</span>)</span>
+                                    <span class="metric-label">52 Week High (<span id="high52Date"
+                                            class="date-sub">--</span>)</span>
                                     <span class="metric-value text-positive" id="priceHigh52">--</span>
                                 </div>
                                 <div class="metric-cell">
-                                    <span class="metric-label">52 Week Low (<span id="low52Date" class="date-sub">--</span>)</span>
+                                    <span class="metric-label">52 Week Low (<span id="low52Date"
+                                            class="date-sub">--</span>)</span>
                                     <span class="metric-value text-negative" id="priceLow52">--</span>
                                 </div>
                             </div>
@@ -574,18 +893,30 @@
                     </div>
                 </section>
 
-                <!-- Price & Volume Chart -->
-                <section class="chart-card">
+                <!-- Dedicated Light Fintech Chart Panel (Cream / White) -->
+                <section class="chart-card dedicated-light-terminal" id="stockChartPanel">
                     <div class="chart-header">
                         <div class="chart-title">
-                            <span>Price & Volume Trend</span>
+                            <span class="chart-title-text">Price & Volume Trend Analysis</span>
                             <span id="chartRangeLabel" class="chart-subtitle">All Historical Observations</span>
                         </div>
-                        <div id="chartHoverInfo" class="chart-hover-info">
-                            Hover over chart to view OHLCV details
+                        <div class="chart-controls-toolbar">
+                            <div class="chart-type-toggle">
+                                <button type="button" class="btn-chart-mode active" id="btnModeCandles" onclick="setChartType('candlestick')">
+                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="9" y1="2" x2="9" y2="22"></line><rect x="6" y="6" width="6" height="12" rx="1"></rect><line x1="17" y1="4" x2="17" y2="20"></line><rect x="14" y="8" width="6" height="8" rx="1"></rect></svg>
+                                    <span>Candles</span>
+                                </button>
+                                <button type="button" class="btn-chart-mode" id="btnModeLine" onclick="setChartType('line')">
+                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+                                    <span>Area</span>
+                                </button>
+                            </div>
                         </div>
                     </div>
-                    <div class="canvas-container">
+                    <div id="chartHoverInfo" class="chart-hover-info">
+                        Hover over chart to view OHLCV details
+                    </div>
+                    <div class="canvas-container light-canvas-wrap">
                         <canvas id="priceChart"></canvas>
                     </div>
                 </section>
@@ -607,7 +938,7 @@
                                 <option value="all">All Records</option>
                             </select>
                             <div class="pager-buttons">
-                                <button id="prevPageBtn" class="pager-btn" disabled>‹</button>
+                                <button id="prevPageBtn" class="pager-btn" disabled>ÔÇ╣</button>
                                 <span id="pageIndicator" class="page-indicator">Page 1 of 1</span>
                                 <button id="nextPageBtn" class="pager-btn" disabled>›</button>
                             </div>
@@ -618,16 +949,16 @@
                         <table class="data-table">
                             <thead>
                                 <tr>
-                                    <th data-sort="Date">Date <span class="sort-icon">↕</span></th>
-                                    <th data-sort="Open">Open <span class="sort-icon">↕</span></th>
-                                    <th data-sort="High">High <span class="sort-icon">↕</span></th>
-                                    <th data-sort="Low">Low <span class="sort-icon">↕</span></th>
-                                    <th data-sort="Close">Close <span class="sort-icon">↕</span></th>
-                                    <th data-sort="Adj_Close">Adj Close <span class="sort-icon">↕</span></th>
-                                    <th data-sort="Volume">Volume <span class="sort-icon">↕</span></th>
-                                    <th data-sort="Change">Day Change <span class="sort-icon">↕</span></th>
-                                    <th data-sort="Change_Pct">Change % <span class="sort-icon">↕</span></th>
-                                    <th data-sort="Return_1d_Pct">1D Return % <span class="sort-icon">↕</span></th>
+                                    <th data-sort="Date">Date <span class="sort-icon">Ôåò</span></th>
+                                    <th data-sort="Open">Open <span class="sort-icon">Ôåò</span></th>
+                                    <th data-sort="High">High <span class="sort-icon">Ôåò</span></th>
+                                    <th data-sort="Low">Low <span class="sort-icon">Ôåò</span></th>
+                                    <th data-sort="Close">Close <span class="sort-icon">Ôåò</span></th>
+                                    <th data-sort="Adj_Close">Adj Close <span class="sort-icon">Ôåò</span></th>
+                                    <th data-sort="Volume">Volume <span class="sort-icon">Ôåò</span></th>
+                                    <th data-sort="Change">Day Change <span class="sort-icon">Ôåò</span></th>
+                                    <th data-sort="Change_Pct">Change % <span class="sort-icon">Ôåò</span></th>
+                                    <th data-sort="Return_1d_Pct">1D Return % <span class="sort-icon">Ôåò</span></th>
                                     <th>Flags</th>
                                 </tr>
                             </thead>
@@ -661,12 +992,14 @@
                         </div>
                         <h2 class="scanner-title">Technical Strategy Scanner</h2>
                         <p class="scanner-subtitle">
-                            Stocks are recommended <strong>strictly</strong> when a defined multi-timeframe strategy satisfies its entry conditions.
+                            Stocks are recommended <strong>strictly</strong> when a defined multi-timeframe strategy
+                            satisfies its entry conditions.
                             <em>"No trades is much better than loss trades."</em>
                         </p>
                     </div>
                     <div class="scanner-action-area">
-                        <button id="btnOpenCreateScanner" class="btn btn-secondary btn-create-scanner" title="Build a custom technical scanner">
+                        <button id="btnOpenCreateScanner" class="btn btn-secondary btn-create-scanner"
+                            title="Build a custom technical scanner">
                             <span>Create Custom Scanner</span>
                         </button>
                         <button id="runScannerBtn" class="btn btn-scan">
@@ -705,20 +1038,25 @@
                         <div class="info-strip-title-row">
                             <span class="info-strip-label" id="currentStratName">All Setups</span>
                             <span id="stratCustomBadge" class="strat-tag-custom" style="display: none;">Custom</span>
-                            <span id="stratModifiedBadge" class="strat-tag-modified" style="display: none;">Modified</span>
+                            <span id="stratModifiedBadge" class="strat-tag-modified"
+                                style="display: none;">Modified</span>
                         </div>
-                        <span class="info-strip-desc" id="currentStratDesc">Scanning all universes for defined technical setups.</span>
+                        <span class="info-strip-desc" id="currentStratDesc">Scanning all universes for defined technical
+                            setups.</span>
                     </div>
                     <div class="info-strip-right-group">
                         <div class="info-strip-universe" id="currentStratUniverse">Universe: NIFTY 500/200/50</div>
                         <div class="strategy-action-buttons-wrap">
-                            <button id="btnEditCurrentStrategy" class="btn btn-secondary btn-sm" title="Customize this strategy">
+                            <button id="btnEditCurrentStrategy" class="btn btn-secondary btn-sm"
+                                title="Customize this strategy">
                                 <span>Customize</span>
                             </button>
-                            <button id="btnResetCurrentStrategy" class="btn btn-secondary btn-sm" style="display: none;" title="Reset to defaults">
+                            <button id="btnResetCurrentStrategy" class="btn btn-secondary btn-sm" style="display: none;"
+                                title="Reset to defaults">
                                 <span>Reset</span>
                             </button>
-                            <button id="btnDeleteCurrentStrategy" class="btn btn-danger btn-sm" style="display: none;" title="Delete custom scanner">
+                            <button id="btnDeleteCurrentStrategy" class="btn btn-danger btn-sm" style="display: none;"
+                                title="Delete custom scanner">
                                 <span>Delete</span>
                             </button>
                         </div>
@@ -729,7 +1067,8 @@
                 <div class="scanner-results-container" id="scannerResultsContainer">
                     <div class="scanner-empty-state" id="scannerEmptyState">
                         <div class="empty-title">Ready to Scan Indian Equities</div>
-                        <div class="empty-desc">Click "Scan Setups" above to evaluate 500+ stocks against multi-timeframe Wilder RSI entry criteria.</div>
+                        <div class="empty-desc">Click "Scan Setups" above to evaluate 500+ stocks against
+                            multi-timeframe Wilder RSI entry criteria.</div>
                     </div>
                     <div class="candidates-grid" id="candidatesGrid" style="display: none;"></div>
                 </div>
@@ -768,7 +1107,8 @@
                         </div>
                         <h3 class="mtf-card-title">Technical Strategy Signal Verification</h3>
                         <p class="mtf-card-sub">
-                            Strict multi-timeframe condition verification. Stocks are recommended <strong>only</strong> if they satisfy a defined strategy setup.
+                            Strict multi-timeframe condition verification. Stocks are recommended <strong>only</strong>
+                            if they satisfy a defined strategy setup.
                         </p>
                     </div>
                     <div id="mtfSignalVerdict" class="signal-verdict verdict-none">
@@ -850,7 +1190,8 @@
                     <div>
                         <h2 class="strategy-title">Trade Strategy & Capital Horizon Planner</h2>
                         <p class="strategy-subtitle">
-                            Configure trading profile, risk tolerance, and exit model. StockPilot computes precise position sizing and trade parameters.
+                            Configure trading profile, risk tolerance, and exit model. StockPilot computes precise
+                            position sizing and trade parameters.
                         </p>
                     </div>
                     <div class="strategy-badge" id="strategyTrendBadge">Analyzing Setup...</div>
@@ -861,8 +1202,10 @@
                     <div class="notice-content">
                         <div class="notice-title">Discipline Policy: "No trade is much better than a loss trade"</div>
                         <div class="notice-text">
-                            The parameters below are calculated strictly as a <strong>Trade Setup & Position Sizing Planner</strong> for your selected stock.
-                            StockPilot will <strong>not</strong> recommend stocks or issue trade calls without a verified signal matching your custom-built strategy setups.
+                            The parameters below are calculated strictly as a <strong>Trade Setup & Position Sizing
+                                Planner</strong> for your selected stock.
+                            StockPilot will <strong>not</strong> recommend stocks or issue trade calls without a
+                            verified signal matching your custom-built strategy setups.
                         </div>
                     </div>
                     <div class="notice-pill">Setup Calculator</div>
@@ -883,13 +1226,16 @@
                     </div>
 
                     <div class="global-config-group">
-                        <label for="availableCapitalInput" class="config-label config-label-global">Available Capital</label>
-                        <input type="number" id="availableCapitalInput" class="config-num-input config-num-global" value="100000" step="5000" min="1000">
+                        <label for="availableCapitalInput" class="config-label config-label-global">Available
+                            Capital</label>
+                        <input type="number" id="availableCapitalInput" class="config-num-input config-num-global"
+                            value="100000" step="5000" min="1000">
                     </div>
 
                     <div class="global-config-group">
                         <label for="maxLossInput" class="config-label config-label-global">Max Acceptable Loss</label>
-                        <input type="number" id="maxLossInput" class="config-num-input config-num-global" value="2000" step="500" min="100">
+                        <input type="number" id="maxLossInput" class="config-num-input config-num-global" value="2000"
+                            step="500" min="100">
                     </div>
                 </div>
 
@@ -904,7 +1250,8 @@
                             <span class="choice-tag tag-target">Target & SL Driven</span>
                         </div>
                         <p class="choice-desc">
-                            Stay in the trade until the technical target or stop-loss is reached. Best when there are no debt repayment deadlines.
+                            Stay in the trade until the technical target or stop-loss is reached. Best when there are no
+                            debt repayment deadlines.
                         </p>
                         <div class="choice-features">
                             <span>Multi-Tier Targets (T1 & T2)</span>
@@ -922,7 +1269,8 @@
                             <span class="choice-tag tag-deadline">Borrowed Capital / Fixed Date</span>
                         </div>
                         <p class="choice-desc">
-                            Stay until a given deadline date. For borrowed money, margin, or funds that must be returned by an agreed date.
+                            Stay until a given deadline date. For borrowed money, margin, or funds that must be returned
+                            by an agreed date.
                         </p>
                         <div class="choice-features">
                             <span>Time-Decay Realizable Target</span>
@@ -968,7 +1316,8 @@
 
                     <div class="deadline-input-group">
                         <label for="borrowedCapitalInput" class="config-label">Borrowed Capital</label>
-                        <input type="number" id="borrowedCapitalInput" class="config-num-input" value="100000" step="5000">
+                        <input type="number" id="borrowedCapitalInput" class="config-num-input" value="100000"
+                            step="5000">
                     </div>
 
                     <div class="deadline-input-group">
@@ -993,7 +1342,8 @@
                         <span class="hero-pill">INDIAN EQUITIES COVERAGE</span>
                         <h2 class="universe-hero-title">NIFTY Universe & Data Sync Center</h2>
                         <p class="universe-hero-desc">
-                            StockPilot tracks, cleans, and analyzes constituents across NIFTY 50, 100, 200, and 500 tiers.
+                            StockPilot tracks, cleans, and analyzes constituents across NIFTY 50, 100, 200, and 500
+                            tiers.
                             Use this center to inspect data freshness or pull latest candles from NSE / Yahoo Finance.
                         </p>
                     </div>
@@ -1047,7 +1397,8 @@
                         <span class="sync-tag">DATA HEALTH & SYNC</span>
                         <h3 class="sync-title">Market Feed & Cache Synchronization</h3>
                         <p class="sync-sub">
-                            Historical data cached in Apache Parquet format. Pull fresh trading ticks from Yahoo Finance below.
+                            Historical data cached in Apache Parquet format. Pull fresh trading ticks from Yahoo Finance
+                            below.
                         </p>
                     </div>
                     <div class="sync-meta-indicators">
@@ -1081,7 +1432,8 @@
                         <span class="console-live-tag">Live</span>
                     </div>
                     <div class="sync-console-body" id="syncLogBody">
-                        <div class="console-line info">[System] StockPilot Data Engine initialized. Ready to sync market feeds.</div>
+                        <div class="console-line info">[System] StockPilot Data Engine initialized. Ready to sync market
+                            feeds.</div>
                     </div>
                 </div>
             </section>
@@ -1097,7 +1449,11 @@
         </div> <!-- End tabViewUniverse -->
 
         <!-- ============================================================== -->
-        <!-- TAB 6: SMART PICKS — ML STOCK RECOMMENDATION ENGINE -->
+        <!-- TAB 5: AI / ML ENGINE -->
+        <!-- ============================================================== -->
+        
+        <!-- ============================================================== -->
+        <!-- TAB 5: SMART PICKS — ML STOCK RECOMMENDATION ENGINE -->
         <!-- ============================================================== -->
         <div class="app-tab-pane" id="tabViewSmartPicks" style="display: none;">
 
@@ -1202,26 +1558,28 @@
 
         </div> <!-- End tabViewSmartPicks -->
 
-        <!-- ============================================================== -->
-        <!-- TAB 5: AI / ML ENGINE -->
-        <!-- ==============================================================  -->
         <div class="app-tab-pane" id="tabViewML" style="display: none;">
-            
+
             <!-- ML Header & Filter Strip -->
             <section class="ml-header-section">
                 <div class="ml-header-left">
                     <span class="ml-section-badge">QUANTITATIVE ML ENGINE</span>
                     <h2 class="ml-main-title">Market Regime Clustering & Meta-Model Gatekeeper</h2>
                     <p class="ml-sub-title">
-                        Advanced machine learning stack: López de Prado fractional differentiation, rescaled range Hurst exponent, GMM macro regime detection, and calibrated meta-label classifier with asymmetric loss penalty.
+                        Advanced machine learning stack: López de Prado fractional differentiation, rescaled range Hurst
+                        exponent, GMM macro regime detection, and calibrated meta-label classifier with asymmetric loss
+                        penalty.
                     </p>
                 </div>
                 <div class="ml-header-right">
                     <div class="ml-stock-selector-wrap">
                         <label class="ml-control-lbl" for="mlTickerInput">Target Equity</label>
                         <div class="ml-input-group">
-                            <input type="text" id="mlTickerInput" class="form-input ml-ticker-field" placeholder="e.g. RELIANCE" value="RELIANCE">
-                            <button type="button" id="btnRunMLAnalysis" onclick="loadMLDashboard(document.getElementById('mlTickerInput').value)" class="btn btn-primary btn-sm">
+                            <input type="text" id="mlTickerInput" class="form-input ml-ticker-field"
+                                placeholder="e.g. RELIANCE" value="RELIANCE">
+                            <button type="button" id="btnRunMLAnalysis"
+                                onclick="loadMLDashboard(document.getElementById('mlTickerInput').value)"
+                                class="btn btn-primary btn-sm">
                                 <span>Evaluate Model</span>
                             </button>
                             <button type="button" id="btnSyncMLTicker" onclick="triggerLiveSync(document.getElementById('mlTickerInput').value)" class="btn btn-secondary btn-sm btn-sync-ml" title="Sync live candle data for this ticker">
@@ -1239,14 +1597,16 @@
             <div class="ml-discipline-banner">
                 <div class="discipline-banner-tag">CORE PHILOSOPHY</div>
                 <div class="discipline-banner-text">
-                    <strong>Rule: "No trades is much better than loss trades"</strong> — The HistGradientBoosting meta-model applies an asymmetric 2.5× penalty against false-positive breakouts. Setups below 55% calibrated Bayesian win probability are strictly disqualified to preserve capital.
+                    <strong>Rule: "No trades is much better than loss trades"</strong>: The HistGradientBoosting
+                    meta-model applies an asymmetric 2.5× penalty against false-positive breakouts. Setups below 55%
+                    calibrated Bayesian win probability are strictly disqualified to preserve capital.
                 </div>
             </div>
 
             <!-- Top Grid: Macro Regime & Trade Qualification -->
             <div class="ml-top-grid">
-                
-                <!-- Card 1: Asset Micro-Regime & GMM Market Radar -->
+
+                <!-- Card 1: GMM Market Regime Radar -->
                 <div class="ml-card regime-radar-card">
                     <div class="ml-card-header">
                         <div>
@@ -1263,13 +1623,11 @@
                         <div class="regime-summary-desc" id="mlRegimeDesc">
                             Exceptional multi-timeframe trend momentum. Strong institutional conviction.
                         </div>
-                        
                         <!-- Decoupling Alert Banner -->
-                        <div id="mlDecouplingBanner" class="ml-decoupling-banner" style="display: flex; align-items: center; gap: 8px; padding: 7px 10px; background: rgba(0, 192, 118, 0.1); border: 1px solid rgba(0, 192, 118, 0.25); border-radius: 6px; margin: 8px 0; font-size: 0.78rem; color: #00c076;">
-                            <span style="font-weight: 700; text-transform: uppercase; font-size: 0.7rem; background: rgba(0, 192, 118, 0.2); padding: 2px 6px; border-radius: 4px;">ALPHA RUNNER</span>
+                        <div id="mlDecouplingBanner" class="ml-decoupling-banner" style="display: flex; align-items: center; gap: 8px;">
+                            <span style="font-weight: 700; text-transform: uppercase; font-size: 0.7rem; background: rgba(0, 179, 134, 0.15); color: #00B386; padding: 2px 6px; border-radius: 4px;">ALPHA RUNNER</span>
                             <span id="mlDecouplingText">Stock is breaking out independently of broader market benchmark consolidation.</span>
                         </div>
-
                         <div class="regime-meta-row">
                             <div class="regime-meta-col">
                                 <span class="meta-label">Alpha vs NIFTY (20D)</span>
@@ -1287,7 +1645,7 @@
                     </div>
 
                     <div class="regime-dist-wrap">
-                        <h4 class="sub-card-title">Benchmark GMM Latent Cluster Distribution</h4>
+                        <h4 class="sub-card-title">GMM Latent Cluster Distribution</h4>
                         <div class="regime-prob-bars" id="mlRegimeBarsContainer">
                             <!-- Injected dynamically: Bull Low-Vol, Bull High-Vol, Consolidation, Bear/High-Risk -->
                         </div>
@@ -1296,7 +1654,7 @@
                     <div class="regime-compatibility-box">
                         <span class="compat-label">Regime Compatible Strategies:</span>
                         <div class="compat-tags-wrap" id="mlRegimeCompatTags">
-                            <span class="compat-tag">MOMENTUM_SUPER_TREND_RUNNER</span>
+                            <span class="compat-tag">MONTHLY_RSI_40_43_ZONE</span>
                         </div>
                     </div>
                 </div>
@@ -1308,18 +1666,18 @@
                             <span class="ml-card-tag">SUPERVISED META-MODEL</span>
                             <h3 class="ml-card-title">Trade Qualification & Sizing</h3>
                         </div>
-                        <span class="qualification-badge" id="mlQualifyBadge">APPROVED • MOMENTUM RUNNER</span>
+                        <span class="qualification-badge" id="mlQualifyBadge">APPROVED</span>
                     </div>
 
                     <div class="qualify-metric-grid">
                         <div class="qualify-metric-cell highlight-cell">
                             <span class="qm-label">Calibrated Win Probability</span>
                             <div class="qm-value-row">
-                                <span class="qm-big-val" id="mlWinProbVal">75.0%</span>
+                                <span class="qm-big-val" id="mlWinProbVal">58.0%</span>
                                 <span class="qm-sub-tag" id="mlThresholdTag">Gate: ≥55.0%</span>
                             </div>
                             <div class="meter-bar-track">
-                                <div class="meter-bar-fill" id="mlWinProbBar" style="width: 75%;"></div>
+                                <div class="meter-bar-fill" id="mlWinProbBar" style="width: 58%;"></div>
                                 <div class="meter-threshold-line" title="55% Cutoff" style="left: 55%;"></div>
                             </div>
                         </div>
@@ -1327,10 +1685,11 @@
                         <div class="qualify-metric-cell">
                             <span class="qm-label">Half-Kelly Sizing Multiplier</span>
                             <div class="qm-value-row">
-                                <span class="qm-big-val" id="mlKellyMultVal">0.20×</span>
+                                <span class="qm-big-val" id="mlKellyMultVal">0.18×</span>
                                 <span class="qm-sub-tag">Conservative Risk</span>
                             </div>
-                            <span class="qm-footnote" id="mlKellyCapitalNote">Allocates ₹20,000 on ₹1,00,000 account</span>
+                            <span class="qm-footnote" id="mlKellyCapitalNote">Allocates ₹18,000 on ₹1,00,000
+                                account</span>
                         </div>
                     </div>
 
@@ -1346,15 +1705,15 @@
                     <div class="triple-barrier-meta">
                         <div class="tb-item">
                             <span class="tb-lbl">Upper Barrier (Target)</span>
-                            <span class="tb-val positive" id="mlBarrierTarget">+12.0% Profit</span>
+                            <span class="tb-val positive">+6.0% Profit</span>
                         </div>
                         <div class="tb-item">
-                            <span class="tb-lbl" id="mlBarrierStopLbl">Lower Barrier (Trailing Stop)</span>
-                            <span class="tb-val negative" id="mlBarrierStop">-7.2% Stop</span>
+                            <span class="tb-lbl">Lower Barrier (Stop)</span>
+                            <span class="tb-val negative">-3.0% Stop</span>
                         </div>
                         <div class="tb-item">
                             <span class="tb-lbl">Vertical Barrier (Time)</span>
-                            <span class="tb-val" id="mlBarrierHorizon">21 Sessions</span>
+                            <span class="tb-val">15 Sessions</span>
                         </div>
                     </div>
                 </div>
@@ -1368,7 +1727,8 @@
                         <span class="ml-card-tag">EXPLAINABLE AI (XAI)</span>
                         <h3 class="ml-card-title">Feature Attribution & Setup Catalysts</h3>
                         <p class="ml-card-desc">
-                            Quantifying local feature contributions toward the meta-model verdict. Positive tailwinds drive conviction; negative headwinds reflect structural resistance.
+                            Quantifying local feature contributions toward the meta-model verdict. Positive tailwinds
+                            drive conviction; negative headwinds reflect structural resistance.
                         </p>
                     </div>
                     <div class="attribution-legend">
@@ -1409,7 +1769,8 @@
                         <span class="ml-card-tag">MATHEMATICAL RIGOR</span>
                         <h3 class="ml-card-title">Memory Preservation & Microstructure Diagnostics</h3>
                         <p class="ml-card-desc">
-                            Evaluating price stationarity without discarding macro memory, plus high-low volatility estimators.
+                            Evaluating price stationarity without discarding macro memory, plus high-low volatility
+                            estimators.
                         </p>
                     </div>
                 </div>
@@ -1422,7 +1783,8 @@
                         </div>
                         <div class="diag-val" id="mlDiagFracD">0.45 (Optimal)</div>
                         <p class="diag-desc">
-                            Binomial expansion (1-B)^0.45 achieves strict ADF stationarity (p &lt; 0.01) while preserving 100% of price memory. Zero integer differencing loss.
+                            Binomial expansion (1-B)^0.45 achieves strict ADF stationarity (p &lt; 0.01) while
+                            preserving 100% of price memory. Zero integer differencing loss.
                         </p>
                     </div>
 
@@ -1433,7 +1795,8 @@
                         </div>
                         <div class="diag-val" id="mlDiagHurst">0.50</div>
                         <p class="diag-desc" id="mlDiagHurstDesc">
-                            Measures long-term memory of price series. H &gt; 0.5 indicates persistent trend; H &lt; 0.5 indicates mean-reverting noise.
+                            Measures long-term memory of price series. H &gt; 0.5 indicates persistent trend; H &lt; 0.5
+                            indicates mean-reverting noise.
                         </p>
                     </div>
 
@@ -1444,7 +1807,8 @@
                         </div>
                         <div class="diag-val" id="mlDiagGKVol">--%</div>
                         <p class="diag-desc">
-                            Uses intra-candle Open-High-Low-Close geometry to estimate realized annual volatility with 8× higher statistical efficiency than close-to-close std.
+                            Uses intra-candle Open-High-Low-Close geometry to estimate realized annual volatility with
+                            8× higher statistical efficiency than close-to-close std.
                         </p>
                     </div>
 
@@ -1455,7 +1819,8 @@
                         </div>
                         <div class="diag-val" id="mlDiagParkinsonVol">--%</div>
                         <p class="diag-desc">
-                            Estimates diffusion constant using High-Low price extremes over 20 rolling sessions, isolating true price diffusion from noise.
+                            Estimates diffusion constant using High-Low price extremes over 20 rolling sessions,
+                            isolating true price diffusion from noise.
                         </p>
                     </div>
 
@@ -1466,7 +1831,8 @@
                         </div>
                         <div class="diag-val" id="mlDiagNATR">--%</div>
                         <p class="diag-desc">
-                            Average True Range expressed as a direct percentage of current price. Standardizes stop-loss distances across equities of different price levels.
+                            Average True Range expressed as a direct percentage of current price. Standardizes stop-loss
+                            distances across equities of different price levels.
                         </p>
                     </div>
 
@@ -1477,7 +1843,8 @@
                         </div>
                         <div class="diag-val" id="mlDiagVolRatio">--</div>
                         <p class="diag-desc">
-                            Fast 5-day realized volatility divided by slow 20-day volatility. Values &gt; 1.2 indicate impending or active volatility expansion breakouts.
+                            Fast 5-day realized volatility divided by slow 20-day volatility. Values &gt; 1.2 indicate
+                            impending or active volatility expansion breakouts.
                         </p>
                     </div>
                 </div>
@@ -1486,6 +1853,7 @@
         </div> <!-- End tabViewML -->
 
     </div> <!-- End app-container -->
+    </div> <!-- End viewAppDashboard -->
 
     <!-- Strategy Builder Modal -->
     <div id="strategyModal" class="modal-overlay" style="display: none;">
@@ -1495,7 +1863,7 @@
                     <span class="modal-pretitle" id="strategyModalPretitle">STRATEGY BUILDER</span>
                     <h3 class="modal-title" id="strategyModalTitle">Create Custom Technical Scanner</h3>
                 </div>
-                <button class="modal-close-btn" id="btnCloseStrategyModal" title="Close">✕</button>
+                <button class="modal-close-btn" id="btnCloseStrategyModal" title="Close">Ô£ò</button>
             </div>
 
             <div class="modal-body">
@@ -1504,11 +1872,14 @@
 
                     <div class="modal-form-grid">
                         <div class="form-group">
-                            <label class="form-label" for="inputStrategyName">Scanner Name <span class="req">*</span></label>
-                            <input type="text" id="inputStrategyName" class="form-input" placeholder="e.g. 52W High Breakout with RSI Momentum" required>
+                            <label class="form-label" for="inputStrategyName">Scanner Name <span
+                                    class="req">*</span></label>
+                            <input type="text" id="inputStrategyName" class="form-input"
+                                placeholder="e.g. 52W High Breakout with RSI Momentum" required>
                         </div>
                         <div class="form-group">
-                            <label class="form-label" for="selectStrategyUniverse">Target Universe <span class="req">*</span></label>
+                            <label class="form-label" for="selectStrategyUniverse">Target Universe <span
+                                    class="req">*</span></label>
                             <select id="selectStrategyUniverse" class="form-select">
                                 <option value="NIFTY 50">NIFTY 50</option>
                                 <option value="NIFTY 100">NIFTY 100</option>
@@ -1521,16 +1892,21 @@
 
                     <div class="form-group" style="margin-top: 14px;">
                         <label class="form-label" for="inputStrategyDesc">Strategy Description</label>
-                        <textarea id="inputStrategyDesc" class="form-textarea" rows="2" placeholder="Explain the rationale and trading idea..."></textarea>
+                        <textarea id="inputStrategyDesc" class="form-textarea" rows="2"
+                            placeholder="Explain the rationale and trading idea..."></textarea>
                     </div>
 
                     <!-- Quick Templates -->
                     <div class="strategy-templates-bar">
                         <span class="templates-lbl">Quick Templates:</span>
-                        <button type="button" class="btn-preset-pill" onclick="applyStrategyTemplate('RSI_MOMENTUM')">Strong RSI Momentum</button>
-                        <button type="button" class="btn-preset-pill" onclick="applyStrategyTemplate('EMA_PULLBACK')">20 EMA Pullback</button>
-                        <button type="button" class="btn-preset-pill" onclick="applyStrategyTemplate('ATH_BREAKOUT')">52W High Breakout</button>
-                        <button type="button" class="btn-preset-pill" onclick="applyStrategyTemplate('RSI_OVERSOLD')">Oversold Reversal</button>
+                        <button type="button" class="btn-preset-pill"
+                            onclick="applyStrategyTemplate('RSI_MOMENTUM')">Strong RSI Momentum</button>
+                        <button type="button" class="btn-preset-pill" onclick="applyStrategyTemplate('EMA_PULLBACK')">20
+                            EMA Pullback</button>
+                        <button type="button" class="btn-preset-pill"
+                            onclick="applyStrategyTemplate('ATH_BREAKOUT')">52W High Breakout</button>
+                        <button type="button" class="btn-preset-pill"
+                            onclick="applyStrategyTemplate('RSI_OVERSOLD')">Oversold Reversal</button>
                     </div>
 
                     <!-- Conditions Builder -->
@@ -1538,7 +1914,8 @@
                         <div class="conditions-header-row">
                             <div>
                                 <h4 class="conditions-section-title">Entry Setup Conditions</h4>
-                                <p class="conditions-section-sub">A stock must satisfy <strong>all</strong> conditions below to generate a signal.</p>
+                                <p class="conditions-section-sub">A stock must satisfy <strong>all</strong> conditions
+                                    below to generate a signal.</p>
                             </div>
                             <button type="button" id="btnAddConditionRow" class="btn btn-secondary btn-sm">
                                 <span>+ Add Rule</span>
@@ -1571,6 +1948,7 @@
         </div>
     </div>
 
-    <script src="/static/app.js?v=20261012_indices_live"></script>
+    <script src="/static/app.js?v=20261013_shiva_redesign_v2"></script>
 </body>
+
 </html>
